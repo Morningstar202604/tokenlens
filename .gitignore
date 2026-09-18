@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 本地数据（用量库、配置、导出文件）
+*.db
+*.db-wal
+*.db-shm
+.tokenlens/
+tokenlens-usage.csv
+*.csv
+
+# 编辑器与系统
+.vscode/
+.idea/
+.DS_Store
+*.log

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tokenlens"
+version = "1.0.0"
+description = "零侵入的 AI Token 用量监控：本地透明代理 + 可视化仪表盘 + 预算告警 + CLI/SDK"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "badhope" }]
+keywords = ["token", "llm", "openai", "monitoring", "cost", "proxy", "observability"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "httpx>=0.26",
+]
+
+[project.optional-dependencies]
+accurate = ["tiktoken>=0.6"]
+
+[project.scripts]
+tokenlens = "tokenlens.__main__:main"
+
+[project.urls]
+Homepage = "https://gitcode.com/badhope/tokenlens"
+Issues = "https://gitcode.com/badhope/tokenlens/issues"
+
+[tool.setuptools]
+packages = ["tokenlens"]
+
+[tool.setuptools.package-data]
+tokenlens = ["web/*"]
