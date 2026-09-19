@@ -171,3 +171,17 @@ tokenlens/
 - 只记录**元数据**（模型、token 数、成本、延迟、状态、字节量），不记录 prompt/响应内容；
 - Authorization 头仅转发不落库，API Key 只存 SHA-256 前 12 位指纹用于区分；
 - 单机单进程 SQLite（WAL），适合个人与中小团队网关前哨；跨机汇总可定期 `export` CSV 或把 `db_path` 指向共享盘。
+
+---
+
+## 仓库地址
+
+四平台并列同步（同分支、同标签、同 HEAD），不分主次，任意选用：
+
+| 平台 | 地址 |
+|---|---|
+| GitHub | <https://github.com/x33834/tokenlens> |
+| GitHub | <https://github.com/Morningstar202604/tokenlens> |
+| GitCode | <https://gitcode.com/badhope/tokenlens> |
+| Gitee | <https://gitee.com/badhope/tokenlens> |
+
