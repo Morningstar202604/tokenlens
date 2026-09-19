@@ -133,6 +133,12 @@ python -m tokenlens doctor     # 环境自检
 
 环境变量速配：`TOKENLENS_PORT`、`TOKENLENS_UPSTREAM`、`TOKENLENS_DAILY_BUDGET`。
 
+## 移动端（Android）
+
+手机上大量 AI App 都是云端调用，能否纳入监控、有哪些平台限制（Android 7+ 用户 CA 不受信、Android 14 系统 CA 进 APEX、QUIC/ECH 削弱可见性）、推荐架构与「字节→token」估算模型，详见 [docs/android-plan.md](docs/android-plan.md)。
+
+结论：普通非 root 手机拿不到精确 token，可行路线是**流量侧观测 + 估算模型 + 官方用量 API 校准**，并把精度如实标注为置信区间。
+
 ## 测试
 
 ```bash
