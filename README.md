@@ -1,12 +1,32 @@
-# TokenLens · AI Token 用量监控
-
-一个**零侵入**的本地 AI Token 计量与监控工具：一条命令启动，把 `base_url` 改成本地代理，所有大模型调用的 token 消耗、成本、延迟、错误便尽收眼底。自带 Web 仪表盘、预算告警、CLI 报表和 Python SDK。
-
-开源地址：https://gitcode.com/badhope/tokenlens
+<div align="center">
+  <h1>TokenLens · AI Token 用量监控</h1>
+  <p>零侵入本地代理 · 一条命令启动 · 仪表盘 + 预算告警 + CLI + Python SDK</p>
+  <img src="https://img.shields.io/badge/License-MIT-blue" alt="License" />
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB" alt="Python" />
+  <img src="https://img.shields.io/badge/模式-透明代理-orange" alt="Proxy" />
+  <img src="https://img.shields.io/badge/数据-本地_Sqlite-2ECC71" alt="Local Data" />
+  <br />
+  <p>
+    <a href="https://github.com/X33834/tokenlens">GitHub</a> ·
+    <a href="https://gitcode.com/badhope/tokenlens">GitCode</a> ·
+    <a href="https://gitee.com/badhope/tokenlens">Gitee</a>
+  </p>
+</div>
 
 ![仪表盘](docs/dashboard.png)
 
-## 为什么是代理模式
+## 代理架构
+
+```mermaid
+graph LR
+    Client["你的应用<br/>base_url 改一行"]
+    Proxy["TokenLens 代理<br/>127.0.0.1:8787<br/>token 计量 + 成本计算"]
+    Upstream["上游 LLM<br/>OpenAI / DeepSeek / Claude / ..."]
+    Proxy --> Upstream
+    Client --> Proxy
+    Proxy -->|"SQLite"| DB[(用量数据)]
+    DB --> Dash["Web 仪表盘<br/>预算告警"]
+```
 
 | 方案 | 侵入性 | 覆盖面 | 说明 |
 |---|---|---|---|
