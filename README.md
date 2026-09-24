@@ -1,5 +1,7 @@
 # TokenLens · AI Token 用量监控
 
+**English**: [README.en.md](README.en.md) · 中文版
+
 零侵入的本地透明代理：改一行 `base_url`，把每次 AI 调用的 token 数、成本、延迟记进本地 SQLite，配一个「花销账本」仪表盘和预算预警。数据不出本机，不用任何云服务。
 
 ## 快速开始
