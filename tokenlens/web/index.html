@@ -130,10 +130,17 @@
   .pager button:not(:disabled):hover{color:var(--text);border-color:var(--main)}
 
   /* ---------- 告警 ---------- */
+  /* 告警时间轴：三列 grid（时间 / 轴线圆点 / 内容），圆点真元素居中、轴线由布局推出，像素级对齐 */
   .alerts{margin-top:14px}
-  .alerts li{list-style:none;display:flex;gap:10px;align-items:baseline;font-size:12.5px;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--line-soft)}
-  .alerts li time{color:var(--dim);white-space:nowrap}
-  .alerts li.over{color:var(--danger)}
+  #alerts-list{list-style:none;margin:0;padding:0}
+  .alerts li{display:grid;grid-template-columns:150px 22px 1fr;align-items:start;font-size:12.5px;color:var(--muted);position:relative;padding:7px 0}
+  .alerts li:not(:last-child)::before{content:'';position:absolute;left:161px;top:16px;bottom:-6px;width:1px;background:var(--line-soft)}
+  .alerts li time{color:var(--dim);text-align:right;padding-right:12px;white-space:nowrap;line-height:1.6}
+  .alerts li .dot{justify-self:center;width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--line);box-shadow:0 0 0 3px var(--bg)}
+  .alerts li.over .dot{background:var(--danger)}
+  .alerts li span{padding-left:12px;line-height:1.6}
+  .alerts li.over span{color:var(--danger)}
+  @media(max-width:640px){.alerts li{grid-template-columns:112px 18px 1fr}.alerts li:not(:last-child)::before{left:121px}.alerts li time{padding-right:9px}}
 
   /* ---------- 设置抽屉 ---------- */
   .overlay{position:fixed;inset:0;background:rgba(5,8,14,.6);z-index:50}
@@ -158,6 +165,25 @@
 
   .foot{color:var(--dim);font-size:11.5px;text-align:center;margin-top:26px;line-height:1.8}
   code{background:#0B0F17;border:1px solid var(--line);border-radius:6px;padding:1.5px 6px;font-size:11.5px;color:var(--main)}
+
+  /* ===== 打印 ===== */
+  @media print{
+    @page{margin:10mm}
+    body{background:#fff !important;color:#111}
+    .topbar .seg, .live .pill, .live select, .icon-btn, .demo-tag, .onboard,
+    .row2 .mini-btn, .tbl-actions, .pager, .foot, .sk, .toast, .drawer, .overlay{display:none !important}
+    .card{background:#fff;box-shadow:none;border:1px solid #dde3ea;break-inside:avoid}
+    .scroll{overflow:visible;max-height:none}
+    table{font-size:10px}
+    .kpi .value{color:#111}
+    .bud .bar{background:#e8edf3}
+    .bud .bar i{background:#2f9e8f}
+    .alerts li span,.alerts li time{color:#333}
+    .alerts li.over span{color:#b0302a}
+    .alerts li .dot{background:#8b95a7;box-shadow:none}
+    .alerts li.over .dot{background:#b0302a}
+    .wrap{max-width:none}
+  }
 
   @media(max-width:640px){
     .live{width:100%}
@@ -663,9 +689,9 @@ function renderAlerts(alerts){
   if(!__alerts.length){ host.hidden = true; return; }
   host.hidden = false;
   $('alerts-list').innerHTML = __alerts.map(a=>{
-    const dt = new Date(a.ts*1000).toLocaleString('zh-CN',{hour12:false});
+    const dt = new Date(a.ts*1000).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
     const over = (a.spent ?? 0) >= (a.limit_usd ?? 0);
-    return `<li class="${over?'over':''}"><time>${dt}</time><span>${esc(a.message)}</span></li>`;
+    return `<li class="${over?'over':''}"><time>${dt}</time><i class="dot"></i><span>${esc(a.message)}</span></li>`;
   }).join('');
 }
 
