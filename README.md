@@ -80,6 +80,9 @@ python -m tokenlens budget      [--daily 20] [--monthly 400]
 python -m tokenlens alerts      [--limit 20]
 python -m tokenlens seed-demo   [--n 600] [--days 7]
 python -m tokenlens reset       # 清空数据
+python -m tokenlens live        # 实时查看近 60 秒流量
+python -m tokenlens config get KEY          # 查看单个配置项
+python -m tokenlens config set KEY VALUE    # 修改配置项（自动按类型转换）
 python -m tokenlens doctor      # 环境自检
 ```
 
@@ -103,7 +106,7 @@ python -m tokenlens doctor      # 环境自检
 ## 测试
 
 ```bash
-python scripts/smoke_test.py   # 端到端冒烟（36 项：转发/流式/并发/预算/拦截/SDK/CLI）
+python scripts/smoke_test.py   # 端到端冒烟（38 项：转发/流式/并发/预算/拦截/链路头/SDK/CLI）
 python scripts/unit_test.py    # 单元测试（29 项：价格表/成本/store/拦截/webhook）
 ```
 

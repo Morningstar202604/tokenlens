@@ -213,7 +213,48 @@ def cmd_config(args):
         p = cfg.save()
         print(f"配置文件已生成: {p}")
         return
+    if args.action == "get":
+        key = args.key
+        if key not in cfg.__dict__:
+            print(f"配置项不存在: {key}")
+            sys.exit(1)
+        v = cfg.__dict__[key]
+        print(json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v)
+        return
+    if args.action == "set":
+        key, raw = args.key, args.value
+        if key not in cfg.__dict__:
+            keys = ", ".join(sorted(k for k in cfg.__dict__ if not k.startswith("_")))
+            print(f"配置项不存在: {key}（可用: {keys}）")
+            sys.exit(1)
+        old = cfg.__dict__[key]
+        try:
+            if isinstance(old, bool):
+                val = raw.lower() in ("1", "true", "yes", "on")
+            elif isinstance(old, int):
+                val = int(raw)
+            elif isinstance(old, float):
+                val = float(raw)
+            elif isinstance(old, dict):
+                val = json.loads(raw)
+            else:
+                val = raw
+        except Exception as exc:
+            print(f"无法把 {raw!r} 解析为 {type(old).__name__}: {exc}")
+            sys.exit(1)
+        setattr(cfg, key, val)
+        p = cfg.save()
+        print(f"{key} = {json.dumps(val, ensure_ascii=False)}  → 已保存 {p}")
+        return
     print(json.dumps(cfg.__dict__, ensure_ascii=False, indent=2))
+
+
+def cmd_live(args):
+    """实时查看近 60 秒流量。"""
+    cfg = Config.load(args.config)
+    store = Store(cfg.db_path)
+    d = store.live_stats(time.time() - 60)
+    print(f"近 60 秒: {d['requests']} req/min · {int(d['tokens']):,} tokens · 错误 {d['errors']} · 花费 ${d['cost']:.6f}")
 
 
 def cmd_doctor(args):
@@ -236,7 +277,10 @@ def cmd_doctor(args):
     try:
         store = Store(cfg.db_path)
         n = store.summary()["requests"]
-        print(f"  [ok]   数据库 {cfg.db_path}（{n:,} 条记录）")
+        size = Path(cfg.db_path).stat().st_size / 1024 / 1024
+        last = store._local.execute("SELECT MAX(ts) FROM requests").fetchone()[0]
+        ago = f"{int(time.time() - last)}s 前" if last else "无"
+        print(f"  [ok]   数据库 {cfg.db_path}（{n:,} 条记录 · {size:.1f} MB · 最近写入 {ago}）")
     except Exception as exc:
         ok = False
         print(f"  [fail] 数据库: {exc}")
@@ -259,6 +303,9 @@ def build_parser():
   tokenlens top --field project --range 30d   按项目排行
   tokenlens export --out usage.csv            导出 CSV
   tokenlens seed-demo                         灌入演示数据
+  tokenlens live                              实时查看近 60 秒流量
+  tokenlens config set budget_daily 5         修改日预算
+  tokenlens config get dashboard_token        查看访问令牌
 """)
     p.add_argument("--config", help="配置文件路径（默认 ~/.tokenlens/config.json）")
     sub = p.add_subparsers(dest="cmd")
@@ -318,9 +365,15 @@ def build_parser():
     s.add_argument("--yes", action="store_true")
     s.set_defaults(func=cmd_reset)
 
-    s = sub.add_parser("config", help="查看/初始化配置")
-    s.add_argument("--init", action="store_true")
+    s = sub.add_parser("config", help="查看/修改配置（config get/set KEY [VALUE]）")
+    s.add_argument("--init", action="store_true", help="生成默认配置文件")
+    s.add_argument("action", nargs="?", choices=["get", "set"], metavar="ACTION", help="get 查看 / set 修改")
+    s.add_argument("key", nargs="?", metavar="KEY", help="配置项名")
+    s.add_argument("value", nargs="?", metavar="VALUE", help="新值（set 时必填）")
     s.set_defaults(func=cmd_config)
+
+    s = sub.add_parser("live", help="实时查看近 60 秒流量")
+    s.set_defaults(func=cmd_live)
 
     s = sub.add_parser("doctor", help="环境自检")
     s.set_defaults(func=cmd_doctor)

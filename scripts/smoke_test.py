@@ -74,6 +74,8 @@ def main():
         check("非流式 200", r.status_code == 200, str(r.status_code))
         data = r.json()
         check("响应含 usage", "usage" in data)
+        check("响应头带成本", float(r.headers.get("x-tokenlens-cost", "0")) >= 0)
+        check("响应头带用量", "prompt_tokens" in r.headers.get("x-tokenlens-usage", ""))
 
         print("[2] 流式请求（上游回传 usage）")
         chunks = 0

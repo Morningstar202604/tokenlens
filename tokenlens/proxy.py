@@ -112,6 +112,8 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                                "type": "budget_exceeded",
                                "scope": reason.split()[0]}},
                     status_code=402,
+                    headers={"x-tokenlens-id": rid,
+                             "x-tokenlens-scope": reason.split()[0]},
                 )
 
         # 流式时尽量让上游回传 usage
@@ -192,6 +194,16 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
             request_id=ctx.request_id, estimated=bool(usage.get("estimated")),
             **{k: v for k, v in usage.items() if k != "estimated"},
         )
+        # 链路追踪：响应头回传本次成本与用量（流式无法预知，SSE 内自带 usage）
+        if status < 400:
+            cost = meter.calc.compute(ctx.model, usage.get("prompt_tokens") or 0,
+                                      usage.get("completion_tokens") or 0,
+                                      usage.get("cached_tokens") or 0,
+                                      provider=ctx.provider)
+            resp_headers["x-tokenlens-cost"] = f"{cost:.8f}"
+            if usage:
+                resp_headers["x-tokenlens-usage"] = json.dumps(
+                    {k: v for k, v in usage.items() if k != "estimated"}, ensure_ascii=False)
         return Response(content=raw, status_code=status, headers=resp_headers,
                         media_type=resp.headers.get("content-type"))
 
