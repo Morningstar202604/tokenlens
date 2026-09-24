@@ -68,6 +68,8 @@ python -m tokenlens budget --daily 20 --monthly 400
 
 达阈值 80% 告警（同一范围 24 小时内只报一次）：仪表盘预算条变色、控制台输出、可选 webhook 推送（支持钉钉 / 企业微信 / 飞书 / 通用 JSON）。历史记录在仪表盘「预算告警记录」和 `python -m tokenlens alerts` 里都能查。
 
+**预算硬拦截**（默认开启）：预算超限后新请求直接 402 拒绝、不再转发上游（响应 `X-TokenLens-Scope: daily|monthly`，明细标「拒」）；可在设置抽屉或 `config set enforce_budget false` 关闭，`enforce_budget_ratio` 可提前到 80% 就拦。
+
 ## CLI
 
 ```bash
@@ -100,6 +102,8 @@ python -m tokenlens doctor      # 环境自检
 | `webhook_url` / `webhook_type` | 空 / generic | 告警推送地址与通道（dingtalk / wecom / feishu） |
 | `inject_stream_usage` | true | 流式自动要求上游回传 usage |
 | `dashboard_token` | 空 | 仪表盘访问令牌（留空不鉴权；配置后 API 需 `Authorization: Bearer <token>`） |
+| `enforce_budget` | true | 预算硬拦截开关（超限请求 402 拒绝） |
+| `enforce_budget_ratio` | 1.0 | 拦截阈值（占预算比例，0.8 = 用到 80% 就拦） |
 
 环境变量速配：`TOKENLENS_PORT`、`TOKENLENS_UPSTREAM`、`TOKENLENS_DAILY_BUDGET`。
 
@@ -107,7 +111,7 @@ python -m tokenlens doctor      # 环境自检
 
 ```bash
 python scripts/smoke_test.py   # 端到端冒烟（38 项：转发/流式/并发/预算/拦截/链路头/SDK/CLI）
-python scripts/unit_test.py    # 单元测试（29 项：价格表/成本/store/拦截/webhook）
+python scripts/unit_test.py    # 单元测试（34 项：价格表/成本/store/拦截/鉴权/webhook）
 ```
 
 ## 目录结构
