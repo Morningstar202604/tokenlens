@@ -42,8 +42,10 @@ def wait_up(url: str, timeout: int = 40):
 
 
 def main():
-    if Path(DB).exists():
-        os.remove(DB)
+    # 真实库在 $TOKENLENS_HOME/usage.db（smoke 配置的 HOME），删干净避免残留
+    for p in (Path("/tmp/tokenlens-smoke/usage.db"), Path(DB)):
+        if p.exists():
+            os.remove(p)
     env = dict(os.environ, TOKENLENS_HOME="/tmp/tokenlens-smoke")
     Path("/tmp/tokenlens-smoke").mkdir(exist_ok=True)
 
@@ -199,6 +201,26 @@ def main():
         r = httpx.put(f"http://127.0.0.1:{PROXY_PORT}/api/config",
                       json={"webhook_type": "dingtalk", "budget_daily": 1000})
         check("PUT config 生效", r.status_code == 200 and r.json()["webhook_type"] == "dingtalk")
+
+        print("\n[15] 预算硬拦截（402）")
+        httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
+                   json={"scope": "daily", "limit": 0.0001})
+        r = c.post(f"{BASE}/chat/completions", json={
+            "model": "gpt-4o-mini", "messages": [{"role": "user", "content": "应被拦截"}]})
+        check("超限请求被 402 拒绝", r.status_code == 402, str(r.status_code))
+        j = r.json()
+        check("拒绝类型 budget_exceeded", j.get("error", {}).get("type") == "budget_exceeded",
+              json.dumps(j, ensure_ascii=False)[:100])
+        time.sleep(0.4)
+        recent = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/recent?limit=5&rng=all").json()
+        denied = next((x for x in recent if x.get("status") == 402), None)
+        check("拦截被记录进明细", denied is not None and "预算" in denied.get("error", ""),
+              json.dumps(denied, ensure_ascii=False)[:120] if denied else "无 402 记录")
+        httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
+                   json={"scope": "daily", "limit": 1000})
+        r2 = c.post(f"{BASE}/chat/completions", json={
+            "model": "gpt-4o-mini", "messages": [{"role": "user", "content": "恢复正常"}]})
+        check("恢复预算后请求正常", r2.status_code == 200, str(r2.status_code))
 
         print("\n[9] SDK 埋点（不经代理）")
         sys.path.insert(0, str(ROOT))

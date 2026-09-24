@@ -45,6 +45,8 @@ class ConfigPatch(BaseModel):
     usd_cny_rate: Optional[float] = None
     webhook_url: Optional[str] = None
     webhook_type: Optional[str] = None
+    enforce_budget: Optional[bool] = None
+    enforce_budget_ratio: Optional[float] = None
     default_upstream: Optional[str] = None
     upstreams: Optional[Dict[str, str]] = None
     pricing_overrides: Optional[Dict[str, Dict[str, float]]] = None
@@ -136,6 +138,8 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
             "usd_cny_rate": cfg.usd_cny_rate,
             "webhook_url": cfg.webhook_url,
             "webhook_type": cfg.webhook_type,
+            "enforce_budget": cfg.enforce_budget,
+            "enforce_budget_ratio": cfg.enforce_budget_ratio,
             "default_upstream": cfg.default_upstream,
             "upstreams": cfg.upstreams,
             "pricing_overrides": cfg.pricing_overrides,

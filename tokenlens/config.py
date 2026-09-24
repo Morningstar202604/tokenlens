@@ -70,6 +70,12 @@ class Config:
     # 告警通道类型：generic | dingtalk | wecom | feishu（决定机器人卡片格式）
     webhook_type: str = "generic"
 
+    # 预算硬拦截：超限请求直接 402 拒绝，不再转发到上游
+    enforce_budget: bool = True
+
+    # 拦截阈值（占预算比例）：1.0 = 超支才拦，0.8 = 用到 80% 就拦
+    enforce_budget_ratio: float = 1.0
+
     # 仪表盘是否需要口令（留空则不鉴权）
     dashboard_token: Optional[str] = None
 

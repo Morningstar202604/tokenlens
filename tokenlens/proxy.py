@@ -96,6 +96,24 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
             started=started, req_bytes=len(body),
         )
 
+        # 预算硬拦截：超限直接 402 拒绝，不转发上游
+        if cfg.enforce_budget:
+            reason = meter.enforce_check()
+            if reason:
+                meter.record(
+                    provider=ctx.provider, upstream=ctx.upstream, model=ctx.model,
+                    endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
+                    is_stream=is_stream, status=402, error=reason,
+                    latency_ms=(time.time() - started) * 1000,
+                    req_bytes=ctx.req_bytes, request_id=rid, estimated=True,
+                )
+                return JSONResponse(
+                    {"error": {"message": f"tokenlens: {reason}",
+                               "type": "budget_exceeded",
+                               "scope": reason.split()[0]}},
+                    status_code=402,
+                )
+
         # 流式时尽量让上游回传 usage
         if is_stream and isinstance(payload, dict) and "messages" in payload and cfg.inject_stream_usage:
             payload.setdefault("stream_options", {})

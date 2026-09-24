@@ -273,6 +273,15 @@
     <input id="cfg-monthly" type="number" min="0" step="5" />
   </section>
   <section>
+    <label>预算硬拦截</label>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <input id="cfg-enforce" type="checkbox" style="width:auto" />
+      <span style="color:var(--muted);font-size:12.5px">超限请求直接拒绝（402），不再转发</span>
+    </div>
+    <label>拦截阈值（占预算比例，1.0 = 超支即拦）</label>
+    <input id="cfg-enforce-ratio" type="number" min="0.1" max="1.5" step="0.1" />
+  </section>
+  <section>
     <label>展示汇率 USD → CNY</label>
     <input id="cfg-rate" type="number" min="0.1" step="0.1" />
     <label>默认上游 base url</label>
@@ -540,7 +549,9 @@ ${r.error?('错误: '+esc(r.error)):''}</pre></td></tr>` : '';
       <td class="num">${fmt(r.completion_tokens)}</td>
       <td class="num">${usd(r.cost)}</td>
       <td class="num" style="color:var(--dim)">${Math.round(r.latency_ms)} ms</td>
-      <td class="num"><span class="tag ${ok?'ok':'err'}">${r.status}</span></td>
+      <td class="num">${r.status===402
+        ? '<span class="tag err" title="预算超限拦截">拒</span>'
+        : '<span class="tag '+(ok?'ok':'err')+'">'+r.status+'</span>'}</td>
     </tr>${detail}`;
   }).join('');
 }
@@ -625,13 +636,15 @@ $('bud-d-edit').addEventListener('click', ()=>openDrawer('daily'));
 $('bud-m-edit').addEventListener('click', ()=>openDrawer('monthly'));
 
 /* 设置抽屉 */
-const DRAWER_FIELDS = ['cfg-daily','cfg-monthly','cfg-rate','cfg-upstream','cfg-webhook','cfg-webhook-type','cfg-pricing'];
+const DRAWER_FIELDS = ['cfg-daily','cfg-monthly','cfg-enforce','cfg-enforce-ratio','cfg-rate','cfg-upstream','cfg-webhook','cfg-webhook-type','cfg-pricing'];
 async function openDrawer(focus){
   $('overlay').hidden = false; $('drawer').hidden = false;
   try{
     const c = await api('/api/config');
     $('cfg-daily').value = c.budget_daily ?? '';
     $('cfg-monthly').value = c.budget_monthly ?? '';
+    $('cfg-enforce').checked = c.enforce_budget ?? true;
+    $('cfg-enforce-ratio').value = c.enforce_budget_ratio ?? 1;
     $('cfg-rate').value = c.usd_cny_rate ?? 7.2;
     $('cfg-upstream').value = c.default_upstream ?? '';
     $('cfg-webhook').value = c.webhook_url ?? '';
@@ -650,6 +663,8 @@ $('btn-save').addEventListener('click', async ()=>{
   const patch = {
     budget_daily: Number($('cfg-daily').value) || 0,
     budget_monthly: Number($('cfg-monthly').value) || 0,
+    enforce_budget: $('cfg-enforce').checked,
+    enforce_budget_ratio: Number($('cfg-enforce-ratio').value) || 1,
     usd_cny_rate: Number($('cfg-rate').value) || 7.2,
     default_upstream: $('cfg-upstream').value.trim() || undefined,
     webhook_url: $('cfg-webhook').value.trim() || null,

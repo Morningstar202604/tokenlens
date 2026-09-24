@@ -136,6 +136,20 @@ class Meter:
                     print(msg, flush=True)
                     self._webhook(msg, st, scope)
 
+    def enforce_check(self) -> Optional[str]:
+        """预算硬拦截检查：任一范围达到拦截阈值则返回拒绝原因，否则 None。
+
+        由代理在转发前调用；limit 为 0（不限）的范围自动跳过。
+        """
+        ratio = self.cfg.enforce_budget_ratio or 1.0
+        for scope in ("daily", "monthly"):
+            st = self.check_single(scope)
+            if st and st["spent"] >= st["limit"] * ratio:
+                pct = min(st["ratio"] * 100, 999)
+                return (f"{scope} 预算已用 ${st['spent']:.4f} / ${st['limit']:.2f}"
+                        f"（{pct:.0f}%），超限拦截")
+        return None
+
     def check_single(self, scope: str):
         limit = self.cfg.budget_daily if scope == "daily" else self.cfg.budget_monthly
         if not limit:

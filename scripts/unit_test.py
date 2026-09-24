@@ -15,7 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from tokenlens.meter import webhook_payload
+from tokenlens.config import Config
+from tokenlens.meter import Meter, webhook_payload
 from tokenlens.pricing import CostCalculator, PricingTable
 from tokenlens.store import Store
 
@@ -121,6 +122,43 @@ def test_store():
     st2.close()
 
 
+def test_enforce():
+    print("[5] 预算硬拦截检查")
+    from tokenlens.meter import Meter
+    db = "/tmp/tl-unit-enf.db"
+    if Path(db).exists():
+        os.remove(db)
+    cfg = Config()
+    cfg.db_path = db
+    st = Store(db)
+    meter = Meter(st, cfg)
+    # 不限预算 → 不拦
+    cfg.budget_daily = 0
+    cfg.budget_monthly = 0
+    check("不限预算不拦", meter.enforce_check() is None)
+    # 预算 10，未超 → 不拦
+    cfg.budget_daily = 10
+    cfg.budget_monthly = 0
+    now = time.time()
+    for i in range(3):
+        st.insert(rec(cost=1.0))
+    check("未超限不拦", meter.enforce_check() is None)
+    # 超支 → 拦截原因含 scope
+    cfg.budget_daily = 2.0
+    reason = meter.enforce_check()
+    check("超支触发拦截", reason is not None and "daily" in reason, str(reason)[:80])
+    # 阈值 0.8：用到 80% 就拦（spent=3.0 ≥ 3.5*0.8=2.8）
+    cfg.budget_daily = 3.5
+    cfg.enforce_budget_ratio = 0.8
+    reason2 = meter.enforce_check()
+    check("80% 阈值触发拦截", reason2 is not None, str(reason2)[:80])
+    # 阈值 1.5：超支 150% 才拦 → 当前 30% 不拦
+    cfg.budget_daily = 10.0
+    cfg.enforce_budget_ratio = 1.5
+    check("150% 阈值不拦当前", meter.enforce_check() is None)
+    st.close()
+
+
 def test_webhook():
     print("[5] webhook 卡片格式")
     st = {"spent": 8.5, "limit": 10.0, "ratio": 0.85}
@@ -137,6 +175,7 @@ def test_webhook():
 def main():
     test_pricing()
     test_store()
+    test_enforce()
     test_webhook()
     passed = sum(1 for _, ok, _ in CHECK if ok)
     print(f"\n{'='*52}\n结果: {passed}/{len(CHECK)} 通过")
