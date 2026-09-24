@@ -20,19 +20,27 @@
     background:var(--bg); color:var(--text);
     font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
     min-height:100vh;
-  }
+  overflow-x:hidden}
   .wrap{max-width:1180px;margin:0 auto;padding:20px 20px 60px}
 
   /* ---------- 顶栏 ---------- */
   .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:4px 0 16px}
   .brand{display:flex;align-items:baseline;gap:10px;font-weight:700;font-size:19px}
   .brand small{color:var(--dim);font-weight:500;font-size:12px}
-  .live{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .live{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .live-pill b{color:var(--text);font-weight:600}
+  .live-pill .sep{color:var(--dim);margin:0 3px}
+  /* 折叠筛选面板 */
+  .filter-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 16px;display:flex;flex-direction:column;gap:12px}
+  .fp-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fp-label{color:var(--dim);font-size:12px;flex:none}
+  .fp-row select{background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:7px 10px;font-size:13px;font-family:inherit}
+  .filter-panel .seg button{padding:7px 14px}
   .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--muted)}
   .pill b{color:var(--text);font-weight:600}
   .pill .pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--main);margin-right:6px;animation:bp 1.8s infinite}
   @keyframes bp{0%,100%{opacity:1}50%{opacity:.25}}
-  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg{display:flex;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:9px}
   .seg button{background:none;border:0;color:var(--muted);padding:6px 13px;font-size:12.5px;cursor:pointer;font-family:inherit}
   .seg button.on{background:var(--line);color:var(--text)}
   select, input{
@@ -170,7 +178,7 @@
   @media print{
     @page{margin:10mm}
     body{background:#fff !important;color:#111}
-    .topbar .seg, .live .pill, .live select, .icon-btn, .demo-tag, .onboard,
+    .topbar .seg, .live .pill, .live select, .icon-btn, .demo-tag, .onboard, .filter-panel,
     .row2 .mini-btn, .tbl-actions, .pager, .foot, .sk, .toast, .drawer, .overlay{display:none !important}
     .card{background:#fff;box-shadow:none;border:1px solid #dde3ea;break-inside:avoid}
     .scroll{overflow:visible;max-height:none}
@@ -186,13 +194,13 @@
   }
 
   @media(max-width:640px){
-    .live{width:100%}
     .kpis{grid-template-columns:1fr 1fr}
-    .topbar{gap:10px}
+    .topbar{gap:8px}
     body{font-size:15px}
     select,input,textarea{font-size:16px}
-    .seg{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
-    .seg button{min-height:44px;white-space:nowrap;flex:0 0 auto}
+    .seg button{min-height:44px;white-space:nowrap}
+    .live-pill{width:100%}
+    .filter-panel select{flex:1 1 160px}
     .mini-btn,.pager button,.icon-btn{min-height:44px}
     .kpi .label{font-size:13px}
     .kpi .sub{font-size:13px}
@@ -209,8 +217,16 @@
     <div class="brand">TokenLens <small>AI 花销账本</small></div>
     <span class="demo-tag">离线预览 · 演示数据</span>
     <div class="live">
-      <span class="pill"><span class="pulse"></span><b id="live-rpm">0</b> req/min</span>
-      <span class="pill">近 60s <b id="live-tokens">0</b> tokens</span>
+      <span class="pill live-pill"><span class="pulse"></span><b id="live-rpm">0</b><span class="sep">·</span><b id="live-tokens">0</b><span class="sep">tok/60s</span></span>
+      <button id="btn-filter" class="icon-btn" type="button">筛选</button>
+      <button id="btn-settings" class="icon-btn" type="button">设置</button>
+    </div>
+  </header>
+
+  <!-- ============ 折叠筛选面板 ============ -->
+  <div class="filter-panel" id="filter-panel" hidden>
+    <div class="fp-row">
+      <span class="fp-label">时间范围</span>
       <div class="seg" id="range">
         <button data-r="24h" class="on">24 小时</button>
         <button data-r="today">今日</button>
@@ -218,11 +234,14 @@
         <button data-r="30d">30 天</button>
         <button data-r="all">全部</button>
       </div>
-      <select id="f-project" aria-label="按项目筛选"><option value="">全部项目</option></select>
-      <select id="f-model" aria-label="按模型筛选"><option value="">全部模型</option></select>
-      <button id="btn-settings" class="icon-btn" type="button">设置</button>
     </div>
-  </header>
+    <div class="fp-row">
+      <span class="fp-label">项目</span>
+      <select id="f-project" aria-label="按项目筛选"><option value="">全部项目</option></select>
+      <span class="fp-label">模型</span>
+      <select id="f-model" aria-label="按模型筛选"><option value="">全部模型</option></select>
+    </div>
+  </div>
 
   <!-- ============ 首次接入引导 ============ -->
   <div class="onboard" id="onboard" hidden>
@@ -768,6 +787,15 @@ async function openDrawer(focus){
   if(focus) setTimeout(()=>{ ($('cfg-'+focus)||$('cfg-daily')).focus(); }, 60);
 }
 $('btn-settings').addEventListener('click', ()=>openDrawer());
+// 折叠筛选面板：点按钮开合；选完时间范围自动收起
+$('btn-filter').addEventListener('click', ()=>{
+  const fp = $('filter-panel');
+  fp.hidden = !fp.hidden;
+  $('btn-filter').classList.toggle('on', !fp.hidden);
+});
+$('filter-panel').addEventListener('click', e=>{
+  if(e.target.closest('#range button')) $('filter-panel').hidden = true;
+});
 $('overlay').addEventListener('click', closeDrawer);
 $('btn-drawer-close').addEventListener('click', closeDrawer);
 function closeDrawer(){ $('overlay').hidden = true; $('drawer').hidden = true; }
