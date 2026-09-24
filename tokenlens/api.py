@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
-from .meter import Meter, day_bounds, month_bounds
+from .meter import CostCalculator, Meter, day_bounds, month_bounds
+from .pricing import PricingTable
 from .store import Store
 
 
@@ -29,6 +32,22 @@ def parse_range(rng: str) -> tuple:
     if rng == "all":
         return None, None
     return day_bounds(now)
+
+
+class BudgetIn(BaseModel):
+    scope: str
+    limit: float
+
+
+class ConfigPatch(BaseModel):
+    budget_daily: Optional[float] = None
+    budget_monthly: Optional[float] = None
+    usd_cny_rate: Optional[float] = None
+    webhook_url: Optional[str] = None
+    webhook_type: Optional[str] = None
+    default_upstream: Optional[str] = None
+    upstreams: Optional[Dict[str, str]] = None
+    pricing_overrides: Optional[Dict[str, Dict[str, float]]] = None
 
 
 def create_api(store: Store, meter: Meter) -> APIRouter:
@@ -78,10 +97,6 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
             "endpoints": store.distinct("endpoint"),
         }
 
-    class BudgetIn(BaseModel):
-        scope: str
-        limit: float
-
     @router.post("/budget")
     def set_budget(body: BudgetIn):
         if body.scope not in ("daily", "monthly"):
@@ -111,5 +126,68 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     @router.get("/health")
     def health():
         return {"ok": True, "ts": time.time()}
+
+    # ---------- 设置 ----------
+    def _public_config(cfg) -> Dict[str, Any]:
+        """对外可见的配置（不暴露 db_path / token 等敏感项）。"""
+        return {
+            "budget_daily": cfg.budget_daily,
+            "budget_monthly": cfg.budget_monthly,
+            "usd_cny_rate": cfg.usd_cny_rate,
+            "webhook_url": cfg.webhook_url,
+            "webhook_type": cfg.webhook_type,
+            "default_upstream": cfg.default_upstream,
+            "upstreams": cfg.upstreams,
+            "pricing_overrides": cfg.pricing_overrides,
+        }
+
+    @router.get("/config")
+    def get_config():
+        return _public_config(meter.cfg)
+
+    @router.put("/config")
+    def put_config(body: ConfigPatch):
+        patch = body.model_dump(exclude_none=True)
+        cfg = meter.cfg
+        for k, v in patch.items():
+            setattr(cfg, k, v)
+        cfg.save()
+        # 价格覆盖变更后重建定价器，立即生效
+        if "pricing_overrides" in patch:
+            meter.pricing = PricingTable(cfg.pricing_overrides)
+            meter.calc = CostCalculator(meter.pricing, cfg.cached_discount, cfg.cached_discounts)
+        return _public_config(cfg)
+
+    # ---------- 导出 ----------
+    @router.get("/export")
+    def export(rng: str = "30d", project: Optional[str] = None,
+               model: Optional[str] = None, provider: Optional[str] = None):
+        s, e = parse_range(rng)
+        rows = store.recent(limit=100000, start=s, end=e,
+                            project=project, model=model, provider=provider)
+        if not rows:
+            raise HTTPException(404, "所选范围暂无数据可导出")
+        buf = io.StringIO()
+        fieldnames = list(rows[0].keys())
+        w = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            r = dict(r)
+            r["ts"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
+            w.writerow(r)
+        return Response(
+            content=buf.getvalue(), media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="tokenlens-usage.csv"'})
+
+    # ---------- 告警历史 ----------
+    @router.get("/alerts")
+    def alerts(limit: int = 50):
+        return store.alerts_list(min(limit, 200))
+
+    # ---------- 数据管理 ----------
+    @router.post("/reset")
+    def reset():
+        store.clear()
+        return {"ok": True}
 
     return router

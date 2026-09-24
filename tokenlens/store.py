@@ -264,6 +264,11 @@ class Store:
             "SELECT COUNT(*) AS c FROM alerts WHERE scope = ? AND ts >= ?", (scope, since)).fetchone()
         return (row["c"] if row else 0) > 0
 
+    def alerts_list(self, limit: int = 50) -> List[Dict[str, Any]]:
+        rows = self._local.execute(
+            "SELECT * FROM alerts ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
     def alert_add(self, scope: str, spent: float, limit_usd: float, message: str):
         with self._write() as cur:
             cur.execute(
