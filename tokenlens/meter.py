@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 import hashlib
+import json
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
@@ -153,11 +154,29 @@ class Meter:
             return
         try:
             import urllib.request
-            payload = {"text": msg, "scope": scope,
-                       "spent": st["spent"], "limit": st["limit"]}
+            payload = webhook_payload(self.cfg.webhook_type, st, scope)
             req = urllib.request.Request(
-                url, data=__import__("json").dumps(payload).encode(),
+                url, data=json.dumps(payload).encode(),
                 headers={"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=5)
         except Exception as exc:
             print(f"[tokenlens] webhook 发送失败: {exc}")
+
+
+def webhook_payload(typ: str, st: Dict[str, Any], scope: str) -> Dict[str, Any]:
+    """按通道类型生成机器人卡片：generic / dingtalk / wecom / feishu。"""
+    spent, limit, ratio = st["spent"], st["limit"], st["ratio"] * 100
+    if typ == "dingtalk":
+        text = (f"### TokenLens 预算告警（{scope}）\n\n"
+                f"已花费 **${spent:.2f}** / ${limit:.2f}（{ratio:.0f}%）")
+        return {"msgtype": "markdown",
+                "markdown": {"title": f"TokenLens 预算告警（{scope}）", "text": text}}
+    if typ == "wecom":
+        text = (f"**TokenLens 预算告警（{scope}）**\n"
+                f"> 已花费 **${spent:.2f}** / ${limit:.2f}（{ratio:.0f}%）")
+        return {"msgtype": "markdown", "markdown": {"content": text}}
+    if typ == "feishu":
+        text = f"TokenLens 预算告警（{scope}）：已花费 ${spent:.2f} / ${limit:.2f}（{ratio:.0f}%）"
+        return {"msg_type": "text", "content": {"text": text}}
+    return {"text": f"[tokenlens] {scope} 预算告警：已花费 ${spent:.2f} / ${limit:.2f}（{ratio:.0f}%）",
+            "scope": scope, "spent": spent, "limit": limit}

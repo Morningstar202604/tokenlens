@@ -99,13 +99,32 @@ _ALIAS = {
 
 
 class PricingTable:
-    """按模型名模糊匹配价格：长名优先，避免 gpt-4o-mini 被 gpt-4o 抢先命中。"""
+    """按模型名模糊匹配价格：长名优先，避免 gpt-4o-mini 被 gpt-4o 抢先命中。
 
-    def __init__(self, overrides: Optional[Dict[str, Dict[str, float]]] = None):
-        self.table: Dict[str, Tuple[float, float]] = dict(BUILTIN_PRICING)
+    价格来源优先级：
+    1. 用户 overrides（最高）
+    2. pricing_data.json（由 scripts/sync_pricing.py 从 LiteLLM 同步，1000+ 模型）
+    3. 内置 BUILTIN_PRICING（兜底，覆盖 LiteLLM 未收录的国内模型，如豆包/Kimi）
+    """
+
+    def __init__(self, overrides: Optional[Dict[str, Dict[str, float]]] = None,
+                 data_path: Optional[str | Path] = None):
+        self.table: Dict[str, Tuple[float, float]] = self._load_builtin(data_path)
         for name, p in (overrides or {}).items():
             self.table[name.lower()] = (float(p.get("in", 0.0)), float(p.get("out", 0.0)))
         self._keys = sorted(self.table.keys(), key=len, reverse=True)
+
+    @staticmethod
+    def _load_builtin(data_path: Optional[str | Path]) -> Dict[str, Tuple[float, float]]:
+        table = dict(BUILTIN_PRICING)
+        path = Path(data_path) if data_path else Path(__file__).parent / "pricing_data.json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for k, v in data.get("models", {}).items():
+                table[k] = (float(v.get("in", 0)), float(v.get("out", 0)))  # LiteLLM 数据更新鲜，覆盖内置
+        except Exception:
+            pass  # 数据文件缺失/损坏时回退内置表
+        return table
 
     @classmethod
     def from_file(cls, path: str | Path) -> "PricingTable":

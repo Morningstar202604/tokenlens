@@ -67,6 +67,9 @@ class Config:
     # 告警 webhook（可选）
     webhook_url: Optional[str] = None
 
+    # 告警通道类型：generic | dingtalk | wecom | feishu（决定机器人卡片格式）
+    webhook_type: str = "generic"
+
     # 仪表盘是否需要口令（留空则不鉴权）
     dashboard_token: Optional[str] = None
 
