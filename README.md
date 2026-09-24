@@ -19,6 +19,30 @@ export OPENAI_API_KEY=sk-xxx    # key 原样透传上游，不落库
 打开 **http://127.0.0.1:8787** 就是仪表盘。没有真实 Key 也能体验：
 `python examples/mock_upstream.py` 起模拟上游，或 `python -m tokenlens seed-demo` 灌演示数据。
 
+## 演示
+
+30 秒真实操作演示（本地浏览器录制，含骨架屏加载、KPI 数字滚动、图表维度切换、明细展开、设置抽屉与告警时间轴）：
+
+<video src="docs/media/tokenlens-promo.mp4" controls width="720" poster="docs/media/desktop.png"></video>
+
+视频文件：`docs/media/tokenlens-promo.mp4`（22s，约 1.5MB）
+
+桌面端完整仪表盘：
+
+![桌面端仪表盘](docs/media/desktop.png)
+
+设置抽屉（日/月预算、硬拦截、汇率、Webhook、价格覆盖）：
+
+![设置抽屉](docs/media/drawer.png)
+
+预算告警时间轴：
+
+![预算告警时间轴](docs/media/alerts.png)
+
+移动端适配：
+
+![移动端](docs/media/mobile.png)
+
 ## 它怎么工作
 
 ```mermaid
