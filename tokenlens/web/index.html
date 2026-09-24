@@ -91,6 +91,24 @@
   th.sorted{cursor:pointer;color:var(--text)}
   th.sorted.asc::after{content:' ▲';font-size:10px;color:var(--accent)}
   th.sorted.desc::after{content:' ▼';font-size:10px;color:var(--accent)}
+
+  /* 骨架屏（首屏加载态，数据到达即被渲染替换） */
+  .sk{background:linear-gradient(90deg,#131A26 25%,#1B2434 37%,#131A26 63%);
+      background-size:400% 100%;animation:sk 1.4s ease infinite;border-radius:6px}
+  @keyframes sk{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  .sk-card{height:118px;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:18px}
+  .sk-chart{height:262px;margin:4px 2px}
+  .sk-rank{height:262px;display:flex;flex-direction:column;gap:14px;padding:18px 22px}
+  .sk-row{height:34px;margin:0 4px}
+  .sk-line{height:12px;width:42%}
+  .sk-line.w60{width:60%}.sk-line.w30{width:30%}
+
+  /* 明细行展开（grid-template-rows 过渡，现代 CSS 平滑方案） */
+  .detail-inner{display:grid;grid-template-rows:0fr;overflow:hidden;transition:grid-template-rows .18s ease-out}
+  .detail-row .detail-inner{animation:tl-expand .2s ease-out forwards}
+  @keyframes tl-expand{from{grid-template-rows:0fr}to{grid-template-rows:1fr}}
+  .detail-inner pre{margin:0;padding:10px 16px 12px;background:#0F1622;border-top:1px solid var(--line);
+                    font:11.5px/1.6 ui-monospace,Consolas,monospace;color:var(--muted);white-space:pre-wrap;word-break:break-all}
   th{text-align:left;color:var(--dim);font-weight:600;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
   th.sorted{color:var(--main)}
   td{padding:7px 10px;border-bottom:1px solid var(--line-soft);font-variant-numeric:tabular-nums}
@@ -123,7 +141,8 @@
   .drawer{position:fixed;top:0;right:0;bottom:0;width:min(400px,92vw);background:#101828;border-left:1px solid var(--line);z-index:60;padding:20px;overflow-y:auto;box-shadow:-20px 0 50px rgba(0,0,0,.4)}
   .drawer h2{margin:0 0 16px;font-size:16px}
   .drawer section{margin-bottom:20px}
-  .drawer label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
+  .drawer label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-bottom:5px}
+  .drawer label svg{flex:none;opacity:.7}
   .drawer input,.drawer select,.drawer textarea{width:100%;margin-bottom:6px}
   .drawer textarea{min-height:90px;resize:vertical;font:12px/1.5 ui-monospace,Consolas,monospace}
   .drawer .row2{display:flex;gap:10px}
@@ -188,7 +207,12 @@
   </div>
 
   <!-- ============ KPI：钱为主线 ============ -->
-  <div class="grid kpis" id="kpis"></div>
+  <div class="grid kpis" id="kpis">
+    <div class="card sk-card"><span class="sk sk-line"></span><span class="sk sk-line w60" style="height:22px"></span><span class="sk sk-line w30"></span></div>
+    <div class="card sk-card"><span class="sk sk-line"></span><span class="sk sk-line w60" style="height:22px"></span><span class="sk sk-line w30"></span></div>
+    <div class="card sk-card"><span class="sk sk-line"></span><span class="sk sk-line w60" style="height:22px"></span><span class="sk sk-line w30"></span></div>
+    <div class="card sk-card"><span class="sk sk-line"></span><span class="sk sk-line w60" style="height:22px"></span><span class="sk sk-line w30"></span></div>
+  </div>
 
   <!-- ============ 预算 ============ -->
   <div class="grid budget">
@@ -216,7 +240,7 @@
           <button data-m="avg_latency">延迟</button>
         </div>
       </div>
-      <div id="chart"></div>
+      <div id="chart"><div class="sk sk-chart"></div></div>
     </div>
     <div class="card">
       <div class="chead">
@@ -227,7 +251,7 @@
           <button data-d="provider">厂商</button>
         </div>
       </div>
-      <div id="rank"></div>
+      <div id="rank"><div class="sk-rank"><span class="sk sk-line"></span><span class="sk sk-line w60"></span><span class="sk sk-line w30"></span><span class="sk sk-line w60"></span><span class="sk sk-line w30"></span></div></div>
     </div>
   </div>
 
@@ -248,7 +272,11 @@
           <th data-k="prompt_tokens" class="num">输入</th><th data-k="completion_tokens" class="num">输出</th>
           <th data-k="cost" class="num">成本</th><th data-k="latency_ms" class="num">延迟</th><th data-k="status" class="num">状态</th>
         </tr></thead>
-        <tbody id="rows"></tbody>
+        <tbody id="rows">
+          <tr><td colspan="9"><div class="sk sk-row"></div></td></tr>
+          <tr><td colspan="9"><div class="sk sk-row"></div></td></tr>
+          <tr><td colspan="9"><div class="sk sk-row"></div></td></tr>
+        </tbody>
       </table>
     </div>
     <div class="pager">
@@ -277,13 +305,13 @@
     <button class="drawer-close" id="btn-drawer-close" style="min-height:44px;min-width:44px;background:none;border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:18px;cursor:pointer" aria-label="关闭设置">✕</button>
   </div>
   <section>
-    <label>日预算（USD，0 = 不限）</label>
+    <label><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/></svg>日预算（USD，0 = 不限）</label>
     <input id="cfg-daily" type="number" min="0" step="0.5" />
     <label>月预算（USD，0 = 不限）</label>
     <input id="cfg-monthly" type="number" min="0" step="5" />
   </section>
   <section>
-    <label>预算硬拦截</label>
+    <label><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>预算硬拦截</label>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
       <input id="cfg-enforce" type="checkbox" style="width:auto" />
       <span style="color:var(--muted);font-size:12.5px">超限请求直接拒绝（402），不再转发</span>
@@ -292,13 +320,13 @@
     <input id="cfg-enforce-ratio" type="number" min="0.1" max="1.5" step="0.1" />
   </section>
   <section>
-    <label>展示汇率 USD → CNY</label>
+    <label><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h16l-4-4M20 16H4l4 4"/></svg>展示汇率 USD → CNY</label>
     <input id="cfg-rate" type="number" min="0.1" step="0.1" />
     <label>默认上游 base url</label>
     <input id="cfg-upstream" type="text" />
   </section>
   <section>
-    <label>告警 webhook 地址（可选）</label>
+    <label><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 1112 0c0 4 2 5 2 5H4s2-1 2-5zM10 20a2 2 0 004 0"/></svg>告警 webhook 地址（可选）</label>
     <input id="cfg-webhook" type="text" placeholder="https://oapi.dingtalk.com/robot/send?access_token=…" />
     <label>告警通道类型</label>
     <select id="cfg-webhook-type">
@@ -309,11 +337,11 @@
     </select>
   </section>
   <section>
-    <label>价格覆盖（JSON：{"模型名": {"in": 输入价, "out": 输出价}}，USD/1M）</label>
+    <label><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11V4a1 1 0 011-1h7l10 10-7 7z"/><circle cx="8" cy="8" r="1.5"/></svg>价格覆盖（JSON：{"模型名": {"in": 输入价, "out": 输出价}}，USD/1M）</label>
     <textarea id="cfg-pricing" spellcheck="false"></textarea>
   </section>
   <section>
-    <label>数据</label>
+    <label><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg>数据</label>
     <div class="row2">
       <a class="btn-ghost" id="btn-export2" href="/api/export?rng=all" download style="text-decoration:none;text-align:center">导出全部 CSV</a>
       <button class="btn-danger" id="btn-reset" type="button">清空数据</button>
@@ -426,20 +454,43 @@ function renderKpis(s, budget){
   const err = s.errors||0, req = s.requests||0;
   const over = today.alert || month.alert;
   const cards = [
-    {cls:'money', label:'今日花费', value:usd(today.spent||0),
+    {cls:'money', label:'今日花费', num:today.spent||0, fmt:usd,
      sub:(today.limit?`预算 ${usd2(today.limit)} · ${Math.round((today.ratio||0)*100)}%`:'未设日预算') + (today.exceeded?' · 已超支':'')},
-    {cls:'money', label:'本月花费', value:usd(month.spent||0),
+    {cls:'money', label:'本月花费', num:month.spent||0, fmt:usd,
      sub:(month.limit?`预算 ${usd2(month.limit)} · ${Math.round((month.ratio||0)*100)}%`:'未设月预算') + (month.exceeded?' · 已超支':'')},
-    {cls:'', label:'Tokens（当前范围）', value:fmt(s.total_tokens), sub:`<span class="np">输入 ${fmt(s.prompt_tokens)}</span> · <span class="np">输出 ${fmt(s.completion_tokens)}</span>`},
-    {cls:err?'alert':'', label:'请求数', value:fmt(req), sub:`<span class="np">错误 ${err} 次</span> · <span class="np">流式 ${fmt(s.streamed)} 次</span>`},
+    {cls:'', label:'Tokens（当前范围）', num:s.total_tokens||0, fmt:fmt,
+     sub:`<span class="np">输入 ${fmt(s.prompt_tokens)}</span> · <span class="np">输出 ${fmt(s.completion_tokens)}</span>`},
+    {cls:err?'alert':'', label:'请求数', num:req, fmt:fmt,
+     sub:`<span class="np">错误 ${err} 次</span> · <span class="np">流式 ${fmt(s.streamed)} 次</span>`},
   ];
   $('kpis').innerHTML = cards.map(k=>`
-    <div class="card kpi ${k.cls}">
+    <div class="card kpi ${k.cls}" data-vi="">
       <div class="label">${k.label}</div>
-      <div class="value">${k.value}</div>
+      <div class="value">${k.fmt(k.num)}</div>
       <div class="sub">${k.sub}</div>
     </div>`).join('');
+  // 数字滚动动效（尊重系统减弱动效设置）
+  [...$('kpis').children].forEach((el, i) => {
+    const target = cards[i].num;
+    const v = el.querySelector('.value');
+    if(v && !window.__tlNoAnim) countUp(v, target, cards[i].fmt);
+  });
   if(over) document.querySelector('.kpi.money')?.classList.add('warn');
+}
+
+/* 数字滚动：rAF + easeOutCubic，600ms；减弱动效时直接显示终值 */
+function countUp(el, to, fmt){
+  if(!matchMedia || matchMedia('(prefers-reduced-motion: reduce)').matches){
+    el.textContent = fmt(to); return;
+  }
+  const from = 0, dur = 600, t0 = performance.now();
+  function step(t){
+    const k = Math.min((t - t0) / dur, 1);
+    const e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(from + (to - from) * e);
+    if(k < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 /* ---------------- 预算 ---------------- */
@@ -474,7 +525,7 @@ function renderChart(ts){
   const host = $('chart');
   if(!echartsOK()){ host.innerHTML = '<div class="empty">图表组件缺失（assets/echarts.min.js 未加载）</div>'; return; }
   const M = METRICS[S.metric];
-  const data = (ts||[]).filter(x=>x).map(d=>({t:d.bucket||'', v:Number(d[S.metric])||0}));
+  const data = (ts||[]).filter(x=>x).map(d=>({t:d.bucket||'', v:Number(d[S.metric])||0, row:d}));
   if(!chart) chart = echarts.init(host);
   if(!data.length){
     chart.clear();
@@ -484,7 +535,11 @@ function renderChart(ts){
   chart.setOption({
     grid:{left:56, right:16, top:20, bottom:30},
     tooltip:{trigger:'axis', backgroundColor:'#1C2A3A', borderColor:'#1F2A3A', textStyle:{color:'#E6EBF5', fontSize:12},
-             formatter:p=>`${p[0].axisValue}<br/>${M.name}: <b>${M.fmt(p[0].data)}</b>`},
+             formatter:p=>{
+               const r = data[p[0].dataIndex]?.row || {};
+               const lat = r.avg_latency ? Math.round(r.avg_latency)+' ms' : '-';
+               return `${p[0].axisValue}<br/>${M.name}: <b>${M.fmt(p[0].data)}</b><br/>请求 ${r.requests??'-'} · 错误 ${r.errors??'-'} · 延迟 ${lat}`;
+             }},
     xAxis:{type:'category', data:data.map(d=>d.t.slice(-5)), boundaryGap:false,
            axisLine:{lineStyle:{color:'#1F2A3A'}}, axisLabel:{color:'#5F6B81', fontSize:11}},
     yAxis:{type:'value', splitLine:{lineStyle:{color:'rgba(31,42,58,.5)'}}, axisLabel:{color:'#5F6B81', fontSize:11}},
@@ -549,15 +604,24 @@ function applyTable(){
   $('pg-prev').disabled = S.page===0;
   $('pg-next').disabled = S.page>=pages-1;
 
-  if(!total){ $('rows').innerHTML = '<tr><td colspan="9" class="empty">这个范围还没有调用记录 — 把 base_url 指向代理发一次请求，或点顶部「灌演示数据」</td></tr>'; return; }
+  if(!total){
+    $('rows').innerHTML = `<tr><td colspan="9" class="empty">
+      <svg viewBox="0 0 64 64" width="46" height="46" aria-hidden="true" style="margin-bottom:8px;opacity:.55">
+        <rect x="10" y="14" width="44" height="38" rx="4" fill="none" stroke="#5F6B81" stroke-width="2.5"/>
+        <path d="M18 24h28M18 32h28M18 40h14" stroke="#5F6B81" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M32 50l5-5 3 3 7-8" fill="none" stroke="#2DD4BF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg><br/>
+      这个范围还没有调用记录 — 把 base_url 指向代理发一次请求，<br/>或点顶部「先看演示数据」直接体验
+    </td></tr>`; return;
+  }
   $('rows').innerHTML = pageRows.map(r=>{
     const dt = new Date(r.ts*1000);
     const time = dt.toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'}) + ' ' + dt.toLocaleTimeString('zh-CN',{hour12:false});
     const ok = r.status < 400;
     const open = __openId === r.id;
-    const detail = open ? `<tr class="detail-row"><td colspan="9"><pre>模型: ${esc(r.model)}  端点: ${esc(r.endpoint||'-')}  项目: ${esc(r.project||'-')}  请求ID: ${esc(r.request_id||'-')}
+    const detail = open ? `<tr class="detail-row"><td colspan="9" style="padding:0"><div class="detail-inner"><pre>模型: ${esc(r.model)}  端点: ${esc(r.endpoint||'-')}  项目: ${esc(r.project||'-')}  请求ID: ${esc(r.request_id||'-')}
 上游: ${esc(r.upstream||'-')}
-${r.error?('错误: '+esc(r.error)):''}</pre></td></tr>` : '';
+${r.error?('错误: '+esc(r.error)):''}</pre></div></td></tr>` : '';
     return `<tr onclick="toggleRow(${r.id})">
       <td style="color:var(--dim)">${time}</td>
       <td>${esc(r.model||'-')}${r.is_stream?' <span class="tag stream">流</span>':''}${r.cost_source==='estimated'?' <span class="tag est">估</span>':''}</td>
