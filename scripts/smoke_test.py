@@ -136,6 +136,70 @@ def main():
         r = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/")
         check("首页可访问", r.status_code == 200 and "TokenLens" in r.text)
 
+        print("[11] SSE 事件被切碎到跨 chunk（行缓冲解析）")
+        with c.stream("POST", f"{BASE}/chat/completions", json={
+            "model": "gpt-4o-mini", "stream": True,
+            "stream_options": {"include_usage": True},
+            "__chunk_size": 40,
+            "messages": [{"role": "user", "content": "chunk-split 测试"}],
+        }) as resp:
+            check("切碎流 200", resp.status_code == 200, str(resp.status_code))
+            n = 0
+            for _ in resp.iter_lines():
+                n += 1
+            check("切碎流仍能完整读完", n > 5, f"{n} 行")
+        time.sleep(0.5)
+        recent = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/recent?limit=5&rng=all").json()
+        latest = next((x for x in recent if x.get("is_stream") and x.get("completion_tokens")), None)
+        check("跨 chunk 后 usage 未丢失", latest is not None,
+              f"completion={latest and latest['completion_tokens']}")
+        check("usage 来自上游非估算", latest and not latest.get("cost_source") == "estimated")
+
+        print("\n[12] 并发写入（SQLite busy_timeout / 独立写连接）")
+        import threading
+        ok_reqs = []
+        lock = threading.Lock()
+        def worker(i):
+            for j in range(5):
+                try:
+                    r = httpx.post(f"{BASE}/chat/completions", headers={
+                        "Authorization": "Bearer sk-test-key", "X-TokenLens-Project": "conc"},
+                        json={"model": "gpt-4o-mini",
+                              "messages": [{"role": "user", "content": f"并发 {i}-{j}"}]},
+                        timeout=30)
+                    with lock:
+                        ok_reqs.append(r.status_code)
+                except Exception as e:
+                    with lock:
+                        ok_reqs.append(999)
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        check("并发 50 请求全 200", ok_reqs.count(200) == 50,
+              f"{ok_reqs.count(200)}/50 成功, 异常 {ok_reqs.count(999)}")
+        stats = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/stats?rng=all").json()
+        check("并发记录全部入库", stats["requests"] >= 57, f"{stats['requests']} 条")
+
+        print("\n[13] 预算直改即时生效 + 告警写入")
+        r = httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
+                       json={"scope": "daily", "limit": 0.001})
+        check("POST budget 生效", r.status_code == 200 and r.json()["daily"]["limit"] == 0.001,
+              json.dumps(r.json(), ensure_ascii=False)[:120])
+        httpx.post(f"{BASE}/chat/completions", headers={"Authorization": "Bearer sk-test-key"},
+                   json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "触发告警"}]})
+        time.sleep(0.4)
+        alerts = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/alerts?limit=10").json()
+        daily_alert = [a for a in alerts if a["scope"] == "daily"]
+        check("告警写入历史", len(daily_alert) >= 1, json.dumps(alerts, ensure_ascii=False)[:160])
+        httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
+                   json={"scope": "daily", "limit": 1000})  # 恢复预算
+        check("恢复预算", httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/budget").json()["daily"]["limit"] == 1000)
+
+        print("\n[14] 设置接口")
+        r = httpx.put(f"http://127.0.0.1:{PROXY_PORT}/api/config",
+                      json={"webhook_type": "dingtalk", "budget_daily": 1000})
+        check("PUT config 生效", r.status_code == 200 and r.json()["webhook_type"] == "dingtalk")
+
         print("\n[9] SDK 埋点（不经代理）")
         sys.path.insert(0, str(ROOT))
         from tokenlens import TokenLens

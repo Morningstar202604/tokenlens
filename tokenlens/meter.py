@@ -130,7 +130,7 @@ class Meter:
             if st and st["alert"]:
                 since = time.time() - (3600 if scope == "daily" else 24 * 3600)
                 if not self.store.alert_recent(scope, since):
-                    msg = (f"[tokenlens] {scope} 预算告警：已花费 ${st['spent']:.2f} / "
+                    msg = (f"[tokenlens] {scope} 预算告警：已花费 ${st['spent']:.4f} / "
                            f"${st['limit']:.2f}（{st['ratio']*100:.0f}%）")
                     self.store.alert_add(scope, st["spent"], st["limit"], msg)
                     print(msg, flush=True)

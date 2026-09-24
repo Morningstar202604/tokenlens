@@ -41,24 +41,37 @@ async def chat(request: Request):
                                        "type": "invalid_request_error"}}, status_code=400)
 
     if stream:
+        chunk_size = int(body.get("__chunk_size") or 0)
+
         async def gen():
             words = ["你好", "这是", "一个", "模拟", "流式", "响应", "用于", "验证",
                      "TokenLens", "的", "计量", "能力", "。"]
+            events = []
             for i, w in enumerate(words):
                 chunk = {"id": "chatcmpl-mock", "object": "chat.completion.chunk",
                          "created": int(time.time()), "model": model,
                          "choices": [{"index": 0, "delta": {"content": w}, "finish_reason": None}]}
-                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-                await _sleep(0.02)
+                events.append(f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n")
             if (body.get("stream_options") or {}).get("include_usage"):
                 u = {"id": "chatcmpl-mock", "object": "chat.completion.chunk",
                      "created": int(time.time()), "model": model, "choices": [],
                      "usage": usage_for(prompt, completion)}
-                yield f"data: {json.dumps(u, ensure_ascii=False)}\n\n"
+                events.append(f"data: {json.dumps(u, ensure_ascii=False)}\n\n")
             else:
                 # 模拟不回传 usage 的上游（此时 TokenLens 会退化为文本估算）
-                yield "data: {\"id\":\"chatcmpl-mock\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n"
-            yield "data: [DONE]\n\n"
+                events.append('data: {"id":"chatcmpl-mock","object":"chat.completion.chunk",'
+                              '"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n')
+            events.append("data: [DONE]\n\n")
+            if chunk_size and chunk_size < len("".join(events)):
+                # 模拟真实网络把 SSE 事件切碎到多个 TCP chunk，验证代理的行缓冲解析
+                payload = "".join(events).encode()
+                for i in range(0, len(payload), chunk_size):
+                    yield payload[i:i + chunk_size]
+                    await _sleep(0.008)
+            else:
+                for ev in events:
+                    yield ev.encode()
+                    await _sleep(0.02)
         return StreamingResponse(gen(), media_type="text/event-stream")
 
     await _sleep(0.05)
