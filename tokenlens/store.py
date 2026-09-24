@@ -44,12 +44,6 @@ CREATE INDEX IF NOT EXISTS idx_req_ts     ON requests(ts);
 CREATE INDEX IF NOT EXISTS idx_req_model  ON requests(model);
 CREATE INDEX IF NOT EXISTS idx_req_proj   ON requests(project);
 
-CREATE TABLE IF NOT EXISTS budgets (
-    scope TEXT PRIMARY KEY,
-    limit_usd REAL NOT NULL,
-    updated_at REAL
-);
-
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts REAL NOT NULL,
@@ -228,7 +222,7 @@ class Store:
                model=None, provider=None) -> List[Dict[str, Any]]:
         w, args = self._where(start, end, project, model, provider)
         rows = self._local.execute(
-            f"SELECT * FROM requests{w} ORDER BY id DESC LIMIT ?", args + [limit]
+            f"SELECT * FROM requests{w} ORDER BY ts DESC, id DESC LIMIT ?", args + [limit]
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -256,17 +250,6 @@ class Store:
             f"SELECT DISTINCT {field} FROM requests WHERE {field} IS NOT NULL ORDER BY {field}"
         ).fetchall()
         return [r[0] for r in rows if r[0]]
-
-    def budget_get(self, scope: str) -> Optional[float]:
-        row = self._local.execute("SELECT limit_usd FROM budgets WHERE scope = ?", (scope,)).fetchone()
-        return row["limit_usd"] if row else None
-
-    def budget_set(self, scope: str, limit_usd: float):
-        with self._write() as cur:
-            cur.execute(
-                "INSERT INTO budgets(scope, limit_usd, updated_at) VALUES(?,?,?) "
-                "ON CONFLICT(scope) DO UPDATE SET limit_usd=excluded.limit_usd, updated_at=excluded.updated_at",
-                (scope, limit_usd, time.time()))
 
     def alert_recent(self, scope: str, since: float) -> bool:
         row = self._local.execute(

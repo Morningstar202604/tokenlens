@@ -38,12 +38,9 @@ def seed(store: Store, meter: Meter, n: int = 600, days: int = 7, seed_val: int 
 
     for _ in range(n):
         project, provider, model, _, pin, pout, pstream, perr = rng.choice(pool)
-        # 时间分布：最近更密集（偏向当前时间）
+        # 时间分布：最近更密集（随机指数衰减到 days 天前）
         ago = (rng.random() ** 1.7) * days * 86400
         ts = now - ago
-        hour = datetime.fromtimestamp(ts).hour
-        if rng.random() > (0.35 + 0.65 * (1 - abs(hour - 14) / 14)):
-            ts -= 3600 * rng.randint(1, 5)
         dt = datetime.fromtimestamp(ts)
 
         mult = rng.choice([0.4, 0.7, 1.0, 1.0, 1.4, 2.2, 4.0])

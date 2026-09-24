@@ -66,7 +66,7 @@ http://127.0.0.1:8787/v1/anthropic/v1/messages      → Claude 原生 API
 python -m tokenlens budget --daily 20 --monthly 400
 ```
 
-达阈值 80% 告警（同一范围 24 小时内只报一次）：仪表盘预算条变色、控制台输出、可选 webhook 推送（支持钉钉 / 企业微信 / 飞书 / 通用 JSON）。历史记录在仪表盘「预算告警记录」和 `python -m tokenlens alerts` 里都能查。
+达阈值 80% 告警（日预算 1 小时内只报一次、月预算 24 小时内只报一次，避免刷屏）：仪表盘预算条变色、控制台输出、可选 webhook 推送（支持钉钉 / 企业微信 / 飞书 / 通用 JSON）。历史记录在仪表盘「预算告警记录」和 `python -m tokenlens alerts` 里都能查。
 
 **预算硬拦截**（默认开启）：预算超限后新请求直接 402 拒绝、不再转发上游（响应 `X-TokenLens-Scope: daily|monthly`，明细标「拒」）；可在设置抽屉或 `config set enforce_budget false` 关闭，`enforce_budget_ratio` 可提前到 80% 就拦。
 

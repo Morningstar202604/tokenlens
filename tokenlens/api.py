@@ -52,6 +52,28 @@ class ConfigPatch(BaseModel):
     pricing_overrides: Optional[Dict[str, Dict[str, float]]] = None
 
 
+def _fill_gaps(rows, bucket: str, start, end, rng: str):
+    """把没有请求的时间桶补成 0，让趋势图连续（符合人看图时对连续时间的预期）。"""
+    if not rows:
+        return rows
+    if start is None or end is None:  # all 范围不补（跨度不定）
+        return rows
+    step = 3600 if bucket == "hour" else 86400
+    fmt = "%Y-%m-%d %H:00" if bucket == "hour" else "%Y-%m-%d"
+    got = {r["bucket"]: r for r in rows}
+    filled = []
+    t = start - (start % step)
+    while t <= end:
+        key = datetime.fromtimestamp(t).strftime(fmt)
+        r = got.get(key)
+        if r is None:
+            r = {"bucket": key, "requests": 0, "errors": 0, "prompt_tokens": 0,
+                 "completion_tokens": 0, "total_tokens": 0, "cost": 0.0, "avg_latency": 0.0}
+        filled.append(r)
+        t += step
+    return filled
+
+
 def create_api(store: Store, meter: Meter) -> APIRouter:
     cfg = meter.cfg
 
@@ -84,7 +106,8 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
         s, e = parse_range(rng)
         if rng in ("30d", "90d", "all", "month"):
             bucket = "day"
-        return store.timeseries(bucket, s, e, project, model, provider)
+        rows = store.timeseries(bucket, s, e, project, model, provider)
+        return _fill_gaps(rows, bucket, s, e, rng)
 
     @router.get("/breakdown")
     def breakdown(field: str = "model", rng: str = "today", project: Optional[str] = None,
@@ -117,11 +140,13 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def set_budget(body: BudgetIn):
         if body.scope not in ("daily", "monthly"):
             raise HTTPException(400, "scope must be daily or monthly")
-        store.budget_set(body.scope, body.limit)
+        if body.limit < 0:
+            raise HTTPException(400, "limit must be >= 0")
         if body.scope == "daily":
             meter.cfg.budget_daily = body.limit
         else:
             meter.cfg.budget_monthly = body.limit
+        meter.cfg.save()  # 预算持久化唯一入口：config.json
         return meter.budget_status()
 
     @router.get("/live")
@@ -207,5 +232,11 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def reset():
         store.clear()
         return {"ok": True}
+
+    @router.post("/seed")
+    def seed_demo(n: int = Query(300, ge=1, le=5000)):
+        from .demo import seed as seed_db
+        count = seed_db(store, meter, n=n, days=7)
+        return {"ok": True, "inserted": count}
 
     return router

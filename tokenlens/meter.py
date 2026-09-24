@@ -163,9 +163,15 @@ class Meter:
         }
 
     def _webhook(self, msg: str, st: Dict[str, Any], scope: str):
+        """告警推送走后台线程，不阻塞代理响应。"""
         url = self.cfg.webhook_url
         if not url:
             return
+        import threading
+        threading.Thread(target=self._send_webhook, args=(url, msg, st, scope),
+                         daemon=True).start()
+
+    def _send_webhook(self, url: str, msg: str, st: Dict[str, Any], scope: str):
         try:
             import urllib.request
             payload = webhook_payload(self.cfg.webhook_type, st, scope)

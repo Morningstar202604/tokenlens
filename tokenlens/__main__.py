@@ -166,10 +166,8 @@ def cmd_budget(args):
     store, meter = _ctx(cfg)
     if args.daily is not None:
         cfg.budget_daily = args.daily
-        store.budget_set("daily", args.daily)
     if args.monthly is not None:
         cfg.budget_monthly = args.monthly
-        store.budget_set("monthly", args.monthly)
     cfg.save()
     b = meter.budget_status()
     for scope in ("daily", "monthly"):

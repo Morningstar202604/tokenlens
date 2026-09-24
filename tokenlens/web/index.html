@@ -88,6 +88,9 @@
 
   /* ---------- 明细表 ---------- */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th.sorted{cursor:pointer;color:var(--text)}
+  th.sorted.asc::after{content:' ▲';font-size:10px;color:var(--accent)}
+  th.sorted.desc::after{content:' ▼';font-size:10px;color:var(--accent)}
   th{text-align:left;color:var(--dim);font-weight:600;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
   th.sorted{color:var(--main)}
   td{padding:7px 10px;border-bottom:1px solid var(--line-soft);font-variant-numeric:tabular-nums}
@@ -546,7 +549,7 @@ function applyTable(){
   $('pg-prev').disabled = S.page===0;
   $('pg-next').disabled = S.page>=pages-1;
 
-  if(!total){ $('rows').innerHTML = '<tr><td colspan="9" class="empty">暂无数据</td></tr>'; return; }
+  if(!total){ $('rows').innerHTML = '<tr><td colspan="9" class="empty">这个范围还没有调用记录 — 把 base_url 指向代理发一次请求，或点顶部「灌演示数据」</td></tr>'; return; }
   $('rows').innerHTML = pageRows.map(r=>{
     const dt = new Date(r.ts*1000);
     const time = dt.toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'}) + ' ' + dt.toLocaleTimeString('zh-CN',{hour12:false});
@@ -597,7 +600,8 @@ function renderAlerts(alerts){
   host.hidden = false;
   $('alerts-list').innerHTML = __alerts.map(a=>{
     const dt = new Date(a.ts*1000).toLocaleString('zh-CN',{hour12:false});
-    return `<li class="${a.exceeded?'over':''}"><time>${dt}</time><span>${esc(a.message)}</span></li>`;
+    const over = (a.spent ?? 0) >= (a.limit_usd ?? 0);
+    return `<li class="${over?'over':''}"><time>${dt}</time><span>${esc(a.message)}</span></li>`;
   }).join('');
 }
 
@@ -624,8 +628,8 @@ document.querySelectorAll('th[data-k]').forEach(th=>{
   th.addEventListener('click', ()=>{
     const k = th.dataset.k;
     if(S.sort===k) S.dir = -S.dir; else { S.sort=k; S.dir = k==='ts'?-1:1; }
-    document.querySelectorAll('th').forEach(x=>x.classList.remove('sorted'));
-    th.classList.add('sorted');
+    document.querySelectorAll('th').forEach(x=>x.classList.remove('sorted','asc','desc'));
+    th.classList.add('sorted', S.dir===1?'asc':'desc');
     S.page = 0; applyTable();
   });
 });
@@ -641,9 +645,14 @@ $('btn-copy').addEventListener('click', async ()=>{
   try{ await navigator.clipboard.writeText($('onboard-cmd').textContent); toast('命令已复制'); }
   catch(e){ toast('复制失败，请手动复制'); }
 });
-$('btn-seed').addEventListener('click', ()=>{
-  toast('演示：请用命令行执行 python -m tokenlens seed-demo 灌入数据');
-  if(!S.offline){ /* 无数据时给出 CLI 提示即可 */ }
+$('btn-seed').addEventListener('click', async ()=>{
+  if(S.offline){ toast('离线演示模式无需灌数据'); return; }
+  try{
+    toast('正在生成演示数据…');
+    await api('/api/seed?n=400', {}, 'POST');
+    toast('演示数据已生成');
+    refresh();
+  }catch(e){ toast('生成失败：'+e.message); }
 });
 
 /* 预算修改 → 打开设置抽屉并聚焦 */

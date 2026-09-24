@@ -58,9 +58,6 @@ class Config:
     # 转发超时（秒）
     timeout: float = 120.0
 
-    # 是否落库请求/响应原文（调试用，默认关闭以保护隐私）
-    store_payloads: bool = False
-
     # 流式请求自动注入 stream_options.include_usage，让上游回传真实 usage
     inject_stream_usage: bool = True
 
