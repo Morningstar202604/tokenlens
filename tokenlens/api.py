@@ -63,7 +63,7 @@ def _fill_gaps(rows, bucket: str, start, end, rng: str):
     got = {r["bucket"]: r for r in rows}
     filled = []
     t = start - (start % step)
-    while t <= end:
+    while t < end:
         key = datetime.fromtimestamp(t).strftime(fmt)
         r = got.get(key)
         if r is None:
@@ -214,7 +214,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
         fieldnames = list(rows[0].keys())
         w = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
-        for r in rows:
+        for r in reversed(rows):  # recent 是时间倒序，导出改为正序
             r = dict(r)
             r["ts"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
             w.writerow(r)

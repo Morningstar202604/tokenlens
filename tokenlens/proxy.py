@@ -69,10 +69,11 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
         base = base.rstrip("/")
         target = f"{base}/{rest.lstrip('/')}" if rest else base
         if request.url.query:
+            from urllib.parse import urlencode
             qs = request.query_params
             keep = {k: v for k, v in qs.items() if k != "upstream"}
             if keep:
-                target += ("&" if "?" in target else "?") + "&".join(f"{k}={v}" for k, v in keep.items())
+                target += ("&" if "?" in target else "?") + urlencode(keep)
 
         # ---- 解析请求体 ----
         try:
@@ -87,7 +88,10 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                    or request.headers.get("x-tokenlens-app")
                    or "default")
         auth = request.headers.get("authorization", "")
-        api_key = auth.replace("Bearer ", "").strip() if auth.lower().startswith("bearer ") else auth
+        if auth.lower().startswith("bearer "):
+            api_key = auth[7:].strip()
+        else:
+            api_key = auth.strip()
 
         ctx = ProxyContext(
             provider=provider_from_url(base), upstream=base, model=model,
@@ -224,9 +228,11 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
             except Exception:
                 return
             u = extract_usage(obj)
+            # 覆盖而非累加：OpenAI 兼容上游常在每条事件或末尾重复携带累计 usage，
+            # 累加会把用量重复计费；以最后一次上报为准。
             for k, v in u.items():
                 if v:
-                    collected["usage"][k] = collected["usage"].get(k, 0) + v
+                    collected["usage"][k] = v
             try:
                 delta = obj["choices"][0]["delta"]
                 if isinstance(delta, dict) and delta.get("content"):

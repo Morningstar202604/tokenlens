@@ -429,7 +429,7 @@ const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.ad
 
 /* ---------------- 数据 ---------------- */
 async function api(path, body, method){
-  const opt = {headers:{'Accept':'application/json'}};
+  const opt = {headers:{'Accept':'application/json'}, cache:'no-store'};
   const tok = localStorage.getItem('tl_token');
   if(tok) opt.headers['Authorization'] = 'Bearer ' + tok;
   if(body){ opt.method = method || 'POST'; opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
@@ -811,7 +811,7 @@ $('btn-save').addEventListener('click', async ()=>{
     enforce_budget_ratio: Number($('cfg-enforce-ratio').value) || 1,
     usd_cny_rate: Number($('cfg-rate').value) || 7.2,
     default_upstream: $('cfg-upstream').value.trim() || undefined,
-    webhook_url: $('cfg-webhook').value.trim() || null,
+    webhook_url: $('cfg-webhook').value.trim(),   // 空串 = 清空告警地址
     webhook_type: $('cfg-webhook-type').value,
     pricing_overrides: pricing,
   };
