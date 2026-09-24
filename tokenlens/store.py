@@ -158,13 +158,22 @@ class Store:
             FROM requests{w}
         """, args).fetchone()
         d = dict(row)
-        # p95 延迟
-        rows = self._local.execute(
-            f"SELECT latency_ms FROM requests{w} AND latency_ms > 0 ORDER BY latency_ms", args
-        ).fetchall() if w else self._local.execute(
-            "SELECT latency_ms FROM requests WHERE latency_ms > 0 ORDER BY latency_ms").fetchall()
-        vals = [r[0] for r in rows]
-        d["p95_latency"] = vals[int(len(vals) * 0.95) - 1] if len(vals) > 1 else (vals[0] if vals else 0)
+        # p95 延迟：SQL 端只取分位那一行，避免把整列延迟拉到 Python
+        w2 = f"{w} AND latency_ms > 0" if w else " WHERE latency_ms > 0"
+        n = self._local.execute(f"SELECT COUNT(*) FROM requests{w2}", args).fetchone()[0]
+        if n > 1:
+            off = max(int(n * 0.95) - 1, 0)
+            row = self._local.execute(
+                f"SELECT latency_ms FROM requests{w2} ORDER BY latency_ms LIMIT 1 OFFSET {off}",
+                args).fetchone()
+            d["p95_latency"] = row[0] if row else 0
+        elif n == 1:
+            row = self._local.execute(
+                f"SELECT latency_ms FROM requests{w2} ORDER BY latency_ms LIMIT 1",
+                args).fetchone()
+            d["p95_latency"] = row[0] if row else 0
+        else:
+            d["p95_latency"] = 0
         d["avg_latency"] = round(d["avg_latency"] or 0, 1)
         d["avg_ttft"] = round(d["avg_ttft"] or 0, 1)
         d["p95_latency"] = round(d["p95_latency"] or 0, 1)

@@ -347,8 +347,15 @@ const toast = msg => { const t = $('toast'); t.textContent = msg; t.classList.ad
 /* ---------------- 数据 ---------------- */
 async function api(path, body, method){
   const opt = {headers:{'Accept':'application/json'}};
+  const tok = localStorage.getItem('tl_token');
+  if(tok) opt.headers['Authorization'] = 'Bearer ' + tok;
   if(body){ opt.method = method || 'POST'; opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
   const r = await fetch(path, opt);
+  if(r.status === 401 && !S._tokAsked){
+    S._tokAsked = true;
+    const t = prompt('此仪表盘已配置访问令牌（config.json 的 dashboard_token），请输入：');
+    if(t){ localStorage.setItem('tl_token', t); S._tokAsked = false; return api(path, body, method); }
+  }
   if(!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }
@@ -386,6 +393,7 @@ function pickDemo(){
 
 let __rank = [], __alerts = [], __ts = [];
 async function refresh(){
+  $('btn-export').href = '/api/export?' + qs();
   const d = await loadAll();
   renderKpis(d.stats, d.budget);
   renderBudget(d.budget);

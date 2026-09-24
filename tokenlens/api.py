@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
 from .meter import CostCalculator, Meter, day_bounds, month_bounds
@@ -53,7 +53,21 @@ class ConfigPatch(BaseModel):
 
 
 def create_api(store: Store, meter: Meter) -> APIRouter:
-    router = APIRouter(prefix="/api")
+    cfg = meter.cfg
+
+    def require_token(request: Request):
+        """仪表盘访问令牌：config 配了 dashboard_token 才生效，默认不鉴权。"""
+        tok = cfg.dashboard_token
+        if not tok:
+            return None
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer ") and auth[7:].strip() == tok:
+            return None
+        if request.query_params.get("token") == tok:
+            return None
+        raise HTTPException(401, "需要访问令牌（config.json 的 dashboard_token）")
+
+    router = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
 
     @router.get("/stats")
     def stats(rng: str = "today", project: Optional[str] = None,

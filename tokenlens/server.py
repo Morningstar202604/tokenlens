@@ -41,7 +41,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     app = FastAPI(
         title="TokenLens",
         description="AI Token 用量监控代理与仪表盘",
-        version="1.1.0",
+        version="1.2.0",
         lifespan=lifespan,
     )
     app.state.cfg = cfg

@@ -10,6 +10,7 @@ import os
 import sys
 import threading
 import time
+from fastapi import FastAPI
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -159,6 +160,31 @@ def test_enforce():
     st.close()
 
 
+def test_auth():
+    print("[6] 仪表盘访问令牌")
+    from fastapi.testclient import TestClient
+    from tokenlens.api import create_api
+    db = "/tmp/tl-unit-auth.db"
+    if Path(db).exists():
+        os.remove(db)
+    st = Store(db)
+    cfg2 = Config()
+    cfg2.db_path = db
+    m = Meter(st, cfg2)
+    app = FastAPI()
+    app.include_router(create_api(st, m))
+    c = TestClient(app)
+    # 默认不鉴权
+    check("默认不鉴权", c.get("/api/stats").status_code == 200)
+    # 配置 token 后：无 token 401，正确 token 200
+    cfg2.dashboard_token = "sekret"
+    check("未带 token 401", c.get("/api/stats").status_code == 401)
+    check("Bearer token 通过", c.get("/api/stats", headers={"Authorization": "Bearer sekret"}).status_code == 200)
+    check("query token 通过", c.get("/api/stats?token=sekret").status_code == 200)
+    check("错误 token 401", c.get("/api/stats?token=wrong").status_code == 401)
+    st.close()
+
+
 def test_webhook():
     print("[5] webhook 卡片格式")
     st = {"spent": 8.5, "limit": 10.0, "ratio": 0.85}
@@ -176,6 +202,7 @@ def main():
     test_pricing()
     test_store()
     test_enforce()
+    test_auth()
     test_webhook()
     passed = sum(1 for _, ok, _ in CHECK if ok)
     print(f"\n{'='*52}\n结果: {passed}/{len(CHECK)} 通过")

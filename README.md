@@ -96,13 +96,15 @@ python -m tokenlens doctor      # 环境自检
 | `usd_cny_rate` | 7.2 | 仪表盘人民币换算 |
 | `webhook_url` / `webhook_type` | 空 / generic | 告警推送地址与通道（dingtalk / wecom / feishu） |
 | `inject_stream_usage` | true | 流式自动要求上游回传 usage |
+| `dashboard_token` | 空 | 仪表盘访问令牌（留空不鉴权；配置后 API 需 `Authorization: Bearer <token>`） |
 
 环境变量速配：`TOKENLENS_PORT`、`TOKENLENS_UPSTREAM`、`TOKENLENS_DAILY_BUDGET`。
 
 ## 测试
 
 ```bash
-python scripts/smoke_test.py   # 端到端：代理转发 / 流式 / 多上游 / 统计 / SDK / CLI
+python scripts/smoke_test.py   # 端到端冒烟（36 项：转发/流式/并发/预算/拦截/SDK/CLI）
+python scripts/unit_test.py    # 单元测试（29 项：价格表/成本/store/拦截/webhook）
 ```
 
 ## 目录结构
@@ -123,6 +125,7 @@ tokenlens/
 │   └── web/                  # 单文件仪表盘（离线可看演示）+ 自托管 ECharts
 ├── examples/mock_upstream.py # 模拟上游
 ├── scripts/smoke_test.py     # 端到端测试
+├── scripts/unit_test.py      # 单元测试
 └── scripts/sync_pricing.py   # 同步模型价格表
 ```
 
