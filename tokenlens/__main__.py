@@ -73,6 +73,10 @@ def cmd_stats(args):
     if args.json:
         print(json.dumps(s_data, ensure_ascii=False, indent=2))
         return
+    if not s_data["requests"]:
+        print("暂无调用记录。先跑 `python -m tokenlens start` 把 base_url 指向代理，"
+              "或 `python -m tokenlens seed-demo` 灌入演示数据。")
+        return
     print(f"\n范围: {args.range}" + (f"  项目: {args.project}" if args.project else "")
           + (f"  模型: {args.model}" if args.model else ""))
     _table(["指标", "数值"], [
@@ -171,6 +175,19 @@ def cmd_budget(args):
     for scope in ("daily", "monthly"):
         d = b[scope]
         print(f"{scope}: 已用 ${d['spent']:.4f} / 预算 ${d['limit']:.2f} ({d['ratio']*100:.0f}%)")
+
+
+def cmd_alerts(args):
+    cfg = Config.load(args.config)
+    store, _ = _ctx(cfg)
+    rows = store.alerts_list(limit=args.limit)
+    if not rows:
+        print("暂无告警记录")
+        return
+    data = [[time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"])),
+             r["scope"], r["message"],
+             "超支" if r["spent"] >= r["limit_usd"] else "接近阈值"] for r in rows]
+    _table(["时间", "范围", "消息", "级别"], data, ["l", "l", "l", "l"])
 
 
 def cmd_seed(args):
@@ -287,6 +304,10 @@ def build_parser():
     s.add_argument("--daily", type=float, default=None)
     s.add_argument("--monthly", type=float, default=None)
     s.set_defaults(func=cmd_budget)
+
+    s = sub.add_parser("alerts", help="查看预算告警历史")
+    s.add_argument("--limit", type=int, default=20)
+    s.set_defaults(func=cmd_alerts)
 
     s = sub.add_parser("seed-demo", help="灌入演示数据")
     s.add_argument("--n", type=int, default=600)
