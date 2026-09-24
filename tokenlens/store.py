@@ -85,12 +85,16 @@ class Store:
 
     @contextmanager
     def _write(self):
-        cur = self._local.cursor()
+        """写操作走独立短连接 + busy_timeout，避免与长期读连接争用。"""
+        conn = sqlite3.connect(self.db_path, timeout=5.0)
+        conn.execute("PRAGMA busy_timeout=5000")
+        cur = conn.cursor()
         try:
             yield cur
-            self._local.commit()
+            conn.commit()
         finally:
             cur.close()
+            conn.close()
 
     # ---------------- 写入 ----------------
     def insert(self, rec: Dict[str, Any]) -> int:
@@ -224,6 +228,17 @@ class Store:
             "SELECT COALESCE(SUM(cost),0) AS c FROM requests WHERE ts >= ? AND ts <= ?",
             (start, end)).fetchone()
         return float(row["c"]) if row else 0.0
+
+    def live_stats(self, since: float) -> Dict[str, float]:
+        """最近 since 秒的实时聚合（修复：不再拉明细到内存过滤）。"""
+        row = self._local.execute(
+            "SELECT COUNT(*) AS requests, "
+            "       COALESCE(SUM(status >= 400),0) AS errors, "
+            "       COALESCE(SUM(total_tokens),0)  AS tokens, "
+            "       COALESCE(SUM(cost),0)          AS cost "
+            "FROM requests WHERE ts >= ?",
+            (since,)).fetchone()
+        return dict(row) if row else {"requests": 0, "errors": 0, "tokens": 0, "cost": 0}
 
     def distinct(self, field: str) -> List[str]:
         if field not in {"model", "project", "provider", "endpoint"}:

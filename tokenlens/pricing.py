@@ -142,9 +142,11 @@ class PricingTable:
 class CostCalculator:
     """把 token 数换算成金额。"""
 
-    def __init__(self, pricing: PricingTable, cached_discount: float = 0.1):
+    def __init__(self, pricing: PricingTable, cached_discount: float = 0.1,
+                 cached_discounts: Optional[Dict[str, float]] = None):
         self.pricing = pricing
         self.cached_discount = cached_discount
+        self.cached_discounts = cached_discounts or {}
 
     def compute(
         self,
@@ -152,11 +154,13 @@ class CostCalculator:
         prompt_tokens: int,
         completion_tokens: int,
         cached_tokens: int = 0,
+        provider: Optional[str] = None,
     ) -> float:
         pin, pout = self.pricing.price(model)
         cached = min(cached_tokens or 0, prompt_tokens or 0)
         billable_prompt = max((prompt_tokens or 0) - cached, 0)
         cost = (billable_prompt * pin + (completion_tokens or 0) * pout) / 1_000_000.0
         if cached:
-            cost += (cached * pin * self.cached_discount) / 1_000_000.0
+            disc = self.cached_discounts.get((provider or "").lower(), self.cached_discount)
+            cost += (cached * pin * disc) / 1_000_000.0
         return round(cost, 8)

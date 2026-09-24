@@ -97,17 +97,15 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def live(window: int = 60):
         """最近 N 秒的速率，用于仪表盘顶部的实时感。"""
         now = time.time()
-        rows = store.recent(200)
-        win = [r for r in rows if r["ts"] >= now - window]
-        tokens = sum(r["total_tokens"] for r in win)
-        cost = sum(r["cost"] for r in win)
+        st = store.live_stats(now - window)
+        n = st["requests"]
         return {
             "window": window,
-            "requests": len(win),
-            "rpm": round(len(win) / (window / 60), 2),
-            "tokens": tokens,
-            "cost": round(cost, 6),
-            "errors": sum(1 for r in win if r["status"] >= 400),
+            "requests": n,
+            "rpm": round(n / (window / 60), 2),
+            "tokens": int(st["tokens"] or 0),
+            "cost": round(float(st["cost"] or 0), 6),
+            "errors": int(st["errors"] or 0),
         }
 
     @router.get("/health")

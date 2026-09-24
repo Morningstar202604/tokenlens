@@ -44,6 +44,11 @@ class Config:
     # 缓存命中的 prompt token 计费折扣（多数厂商 cached input 为 0.1 折或免费）
     cached_discount: float = 0.1
 
+    # 按厂商覆盖缓存折扣：{"openai": 0.25}（OpenAI 缓存输入为 0.25 折）
+    cached_discounts: Dict[str, float] = field(default_factory=lambda: {
+        "openai": 0.25,
+    })
+
     # 展示用汇率：USD -> CNY
     usd_cny_rate: float = 7.2
 

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,16 +27,29 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     pricing = PricingTable(cfg.pricing_overrides)
     meter = Meter(store, cfg, pricing)
 
+    # 共享一个 httpx 连接池，避免每个请求重建连接（复用底层连接）
+    client = httpx.AsyncClient(
+        timeout=httpx.Timeout(cfg.timeout, connect=10.0),
+        follow_redirects=True,
+    )
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        await client.aclose()
+
     app = FastAPI(
         title="TokenLens",
         description="AI Token 用量监控代理与仪表盘",
-        version="1.0.0",
+        version="1.1.0",
+        lifespan=lifespan,
     )
     app.state.cfg = cfg
     app.state.store = store
     app.state.meter = meter
+    app.state.client = client
 
-    register_proxy(app, cfg, meter)
+    register_proxy(app, cfg, meter, client)
     app.include_router(create_api(store, meter))
 
     if (WEB_DIR / "assets").exists():

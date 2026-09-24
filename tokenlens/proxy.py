@@ -50,8 +50,7 @@ def _client_headers(req: Request) -> Dict[str, str]:
     return {k: v for k, v in req.headers.items() if k.lower() not in HOP_HEADERS}
 
 
-def register_proxy(app: FastAPI, cfg: Config, meter: Meter):
-    timeout = httpx.Timeout(cfg.timeout, connect=10.0)
+def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncClient):
 
     async def _forward(request: Request, path: str):
         started = time.time()
@@ -107,14 +106,12 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter):
         headers = _client_headers(request)
         headers.pop("x-tokenlens-upstream", None)
 
-        client = httpx.AsyncClient(timeout=timeout, follow_redirects=True)
         req_args = dict(method=request.method, url=target, content=body, headers=headers)
 
         try:
             upstream_req = client.build_request(**req_args)
             resp = await client.send(upstream_req, stream=is_stream)
         except Exception as exc:
-            await client.aclose()
             meter.record(
                 provider=ctx.provider, upstream=ctx.upstream, model=ctx.model,
                 endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
@@ -145,8 +142,7 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter):
         else:
             error = None
         finally:
-            await resp.aclose()
-            await client.aclose()
+            await resp.aclose()   # 共享连接池由 app 生命周期统一关闭，这里不关 client
 
         latency = (time.time() - started) * 1000
         try:
@@ -184,45 +180,54 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter):
     async def _stream_response(client, resp, ctx, status, resp_headers, started):
         resp_headers.pop("content-length", None)
         collected = {"text": [], "usage": {}, "ttft": None, "bytes": 0}
+        buf = ""
+
+        def handle_line(line: str):
+            """逐行解析 SSE：data: 事件即 JSON，抓 usage 与增量文本。"""
+            if not line.startswith("data:"):
+                return
+            data = line[5:].strip()
+            if not data or data == "[DONE]":
+                return
+            try:
+                obj = json.loads(data)
+            except Exception:
+                return
+            u = extract_usage(obj)
+            for k, v in u.items():
+                if v:
+                    collected["usage"][k] = collected["usage"].get(k, 0) + v
+            try:
+                delta = obj["choices"][0]["delta"]
+                if isinstance(delta, dict) and delta.get("content"):
+                    collected["text"].append(delta["content"])
+            except Exception:
+                pass
+            if obj.get("type") == "content_block_delta":
+                d = (obj.get("delta") or {}).get("text")
+                if d:
+                    collected["text"].append(d)
 
         async def gen():
+            nonlocal buf
             try:
                 async for chunk in resp.aiter_bytes():
                     if collected["ttft"] is None and chunk:
                         collected["ttft"] = (time.time() - started) * 1000
                     collected["bytes"] += len(chunk)
-                    text = chunk.decode("utf-8", errors="ignore")
-                    # 解析 SSE 事件，抓 usage / 增量文本
-                    for line in text.splitlines():
-                        if not line.startswith("data:"):
-                            continue
-                        data = line[5:].strip()
-                        if not data or data == "[DONE]":
-                            continue
-                        try:
-                            obj = json.loads(data)
-                        except Exception:
-                            continue
-                        u = extract_usage(obj)
-                        for k, v in u.items():
-                            if v:
-                                collected["usage"][k] = collected["usage"].get(k, 0) + v
-                        try:
-                            delta = obj["choices"][0]["delta"]
-                            if isinstance(delta, dict) and delta.get("content"):
-                                collected["text"].append(delta["content"])
-                        except Exception:
-                            pass
-                        if obj.get("type") == "content_block_delta":
-                            d = (obj.get("delta") or {}).get("text")
-                            if d:
-                                collected["text"].append(d)
                     yield chunk
+                    # 按行缓冲解析：修复 SSE 事件跨 chunk 被切碎导致 usage 丢失的问题
+                    buf += chunk.decode("utf-8", errors="ignore")
+                    while "\n" in buf:
+                        line, buf = buf.split("\n", 1)
+                        handle_line(line)
             except Exception as exc:
                 collected["error"] = f"stream aborted: {exc}"[:300]
             finally:
+                if buf.strip():  # 流结束时处理末尾未换行的残留
+                    for line in buf.split("\n"):
+                        handle_line(line)
                 await resp.aclose()
-                await client.aclose()
                 usage = dict(collected["usage"])
                 if not usage.get("completion_tokens"):
                     joined = "".join(collected["text"])

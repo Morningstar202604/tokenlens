@@ -21,7 +21,7 @@ def provider_from_url(url: str) -> str:
                 "volces", "volcengine", "ark", "siliconflow", "googleapis", "x.ai",
                 "groq", "together", "ollama", "localhost", "127.0.0.1", "openrouter"):
         if key in host:
-            return "openai" if key == "openrouter" and False else key
+            return key
     return "custom"
 
 
@@ -53,7 +53,7 @@ class Meter:
         self.store = store
         self.cfg = cfg
         self.pricing = pricing or PricingTable(cfg.pricing_overrides)
-        self.calc = CostCalculator(self.pricing, cfg.cached_discount)
+        self.calc = CostCalculator(self.pricing, cfg.cached_discount, cfg.cached_discounts)
 
     # ---------- 记录 ----------
     def record(self, **kw) -> Dict[str, Any]:
@@ -65,7 +65,8 @@ class Meter:
         model = kw.get("model")
         cost = kw.get("cost")
         if cost is None:
-            cost = self.calc.compute(model, prompt, completion, cached)
+            cost = self.calc.compute(model, prompt, completion, cached,
+                                     provider=kw.get("provider"))
             cost_source = "estimated" if kw.get("estimated") else "reported"
         else:
             cost_source = kw.get("cost_source") or "reported"
@@ -88,7 +89,8 @@ class Meter:
             "cost": round(float(cost), 8),
             "cost_source": cost_source,
             "latency_ms": round(float(kw.get("latency_ms") or 0), 1),
-            "ttft_ms": round(float(kw["ttft_ms"]), 1) if kw.get("ttft_ms") else None,
+            "ttft_ms": (round(float(kw["ttft_ms"]), 1)
+                        if kw.get("ttft_ms") is not None else None),
             "status": int(kw.get("status") or 200),
             "error": (kw.get("error") or "")[:500],
             "req_bytes": int(kw.get("req_bytes") or 0),
