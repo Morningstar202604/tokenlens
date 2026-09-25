@@ -44,6 +44,20 @@ Mobile layout:
 
 ![Mobile layout](docs/media/mobile.png)
 
+## Brand Assets
+
+Brand promo video (30s: branded intro -> live demo -> branded outro):
+
+<video src="docs/media/tokenlens-brand.mp4" controls width="720" poster="docs/media/brand-wide.png"></video>
+
+Brand key visual - wide (1600x900, for website / social cover / articles):
+
+![Brand wide](docs/media/brand-wide.png)
+
+Brand key visual - vertical (1080x1440, for Xiaohongshu / Moments / mobile poster):
+
+![Brand vertical](docs/media/brand-vertical.png)
+
 ## How It Works
 
 ```mermaid

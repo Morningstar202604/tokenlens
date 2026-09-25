@@ -45,6 +45,20 @@ export OPENAI_API_KEY=sk-xxx    # key 原样透传上游，不落库
 
 ![移动端](docs/media/mobile.png)
 
+## 品牌视觉
+
+品牌宣传视频（30 秒：品牌片头 → 真实操作演示 → 品牌片尾）：
+
+<video src="docs/media/tokenlens-brand.mp4" controls width="720" poster="docs/media/brand-wide.png"></video>
+
+品牌主视觉 · 横版（1600×900，官网 / 社媒头条 / 公众号头图）：
+
+![品牌主视觉横版](docs/media/brand-wide.png)
+
+品牌主视觉 · 竖版（1080×1440，小红书 / 朋友圈 / 手机海报）：
+
+![品牌主视觉竖版](docs/media/brand-vertical.png)
+
 ## 它怎么工作
 
 ```mermaid
