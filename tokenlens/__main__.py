@@ -132,7 +132,7 @@ def cmd_export(args):
     with out.open("w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
-        for r in rows:
+        for r in reversed(rows):  # recent 是时间倒序，导出改为正序
             r = dict(r)
             r["ts"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
             w.writerow(r)

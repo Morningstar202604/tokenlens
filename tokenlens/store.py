@@ -68,9 +68,10 @@ class Store:
         parent = os.path.dirname(os.path.abspath(db_path))
         if parent:
             os.makedirs(parent, exist_ok=True)
-        self._local = sqlite3.connect(db_path, check_same_thread=False)
+        self._local = sqlite3.connect(db_path, check_same_thread=False, isolation_level=None)
         self._local.row_factory = sqlite3.Row
         self._local.execute("PRAGMA journal_mode=WAL")
+        self._local.execute("PRAGMA busy_timeout=5000")
         self._init()
 
     def _init(self):
@@ -258,7 +259,7 @@ class Store:
 
     def alerts_list(self, limit: int = 50) -> List[Dict[str, Any]]:
         rows = self._local.execute(
-            "SELECT * FROM alerts ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+            "SELECT * FROM alerts ORDER BY ts DESC, id DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
     def alert_add(self, scope: str, spent: float, limit_usd: float, message: str):
