@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import sys
 import time
@@ -107,11 +108,13 @@ def track(project: str = "default", model: Optional[str] = None,
         """从调用参数提取请求载荷：优先关键字参数；位置参数调用（如
         create(messages, ...)）时取第一个位置参数，避免漏记。"""
         payload = {}
-        for k in ("messages", "input", "prompt", "content", "model"):
+        for k in ("messages", "input", "prompt", "content"):
             if kwargs.get(k) is not None:
                 payload[k] = kwargs[k]
-        if not payload and args:
+        if not any(k in payload for k in ("messages", "input", "prompt", "content")) and args:
             payload["messages"] = args[0]
+        if kwargs.get("model") is not None:
+            payload["model"] = kwargs["model"]
         return payload or None
 
     def deco(fn: Callable):
@@ -127,7 +130,7 @@ def track(project: str = "default", model: Optional[str] = None,
                 print(f"[tokenlens] track 失败: {exc}")
             return result
 
-        if functools.iscoroutinefunction(fn):
+        if asyncio.iscoroutinefunction(fn):
             @functools.wraps(fn)
             async def async_wrapper(*args, **kwargs):
                 started = time.time()

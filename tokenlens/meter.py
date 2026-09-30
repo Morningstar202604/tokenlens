@@ -15,34 +15,32 @@ from .store import Store
 
 
 _PROVIDER_HOSTS = {
-    "api.openai.com": "openai",
-    "api.anthropic.com": "anthropic",
-    "api.deepseek.com": "deepseek",
-    "api.moonshot.cn": "moonshot",
-    "dashscope.aliyuncs.com": "dashscope",
-    "open.bigmodel.cn": "bigmodel",
-    "ark.cn-beijing.volces.com": "volces",
-    "api.siliconflow.cn": "siliconflow",
-    "generativelanguage.googleapis.com": "googleapis",
-    "api.x.ai": "x.ai",
-    "api.groq.com": "groq",
-    "api.together.xyz": "together",
-    "openrouter.ai": "openrouter",
     "127.0.0.1": "local",
     "localhost": "local",
 }
-_PROVIDER_SUBSTR = (
-    ("openai", "openai"), ("anthropic", "anthropic"), ("deepseek", "deepseek"),
-    ("moonshot", "moonshot"), ("dashscope", "dashscope"), ("bigmodel", "bigmodel"),
-    ("volces", "volces"), ("volcengine", "volces"), ("siliconflow", "siliconflow"),
-    ("googleapis", "googleapis"), ("openrouter", "openrouter"), ("groq", "groq"),
-    ("together", "together"), ("ollama", "ollama"),
-)
+# 注册域（主机名最后两级）→ 厂商；子域任意前缀都能正确归属
+_PROVIDER_DOMAINS = {
+    "openai.com": "openai",
+    "anthropic.com": "anthropic",
+    "deepseek.com": "deepseek",
+    "moonshot.cn": "moonshot",
+    "aliyuncs.com": "dashscope",
+    "bigmodel.cn": "bigmodel",
+    "volces.com": "volces",
+    "volcengine.com": "volces",
+    "siliconflow.cn": "siliconflow",
+    "googleapis.com": "googleapis",
+    "x.ai": "x.ai",
+    "groq.com": "groq",
+    "together.xyz": "together",
+    "openrouter.ai": "openrouter",
+    "ollama.com": "ollama",
+}
 
 
 def provider_from_url(url: str) -> str:
-    """从上游 URL 识别厂商：先精确匹配已知主机名（避免子串误判），
-    再按域名关键字回退，本地地址归为 local。"""
+    """从上游 URL 识别厂商：本地地址归 local；否则按注册域（最后两级）
+    匹配已知厂商，避免子串误判自建/仿冒域名。"""
     if not url:
         return "unknown"
     low = url.lower()
@@ -50,9 +48,11 @@ def provider_from_url(url: str) -> str:
     host = host.split("@")[-1]  # 去掉 userinfo
     if host in _PROVIDER_HOSTS:
         return _PROVIDER_HOSTS[host]
-    for key, name in _PROVIDER_SUBSTR:
-        if key in host:
-            return name
+    parts = host.split(".")
+    if len(parts) >= 2:
+        domain = ".".join(parts[-2:])
+        if domain in _PROVIDER_DOMAINS:
+            return _PROVIDER_DOMAINS[domain]
     return "custom"
 
 

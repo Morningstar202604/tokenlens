@@ -198,12 +198,50 @@ def test_webhook():
     check("通用 JSON 含数字", g["text"] and g["spent"] == 8.5)
 
 
+def test_sdk_track():
+    print("[7] SDK 埋点（track 装饰器：位置参数 + 失败记录）")
+    import shutil
+    home = "/tmp/tl-unit-sdk"
+    shutil.rmtree(home, ignore_errors=True)
+    os.makedirs(home, exist_ok=True)
+    os.environ["TOKENLENS_HOME"] = home
+    from tokenlens import configure, track
+    cfg3 = Config()
+    cfg3.db_path = os.path.join(home, "tokenlens.db")
+    configure(cfg3)
+
+    @track(model="gpt-4o", provider="openai")
+    def fake_llm(messages, model=None):
+        return {"choices": [{"message": {"content": "ok"}}]}
+
+    fake_llm([{"role": "user", "content": "hello world"}])
+    st3 = Store(cfg3.db_path)
+    rows = st3.recent(5)
+    check("track 位置参数记录", bool(rows) and rows[0]["model"] == "gpt-4o"
+          and rows[0]["prompt_tokens"] > 0,
+          f"{rows[0]['model'] if rows else '-'} pt={rows[0]['prompt_tokens'] if rows else 0}")
+
+    @track(model="gpt-4o", provider="openai")
+    def bad_llm(messages):
+        raise RuntimeError("boom")
+
+    try:
+        bad_llm([{"role": "user", "content": "x"}])
+    except RuntimeError:
+        pass
+    rows2 = st3.recent(5)
+    check("track 失败也记录", bool(rows2) and rows2[0]["status"] == 500,
+          f"status={rows2[0]['status'] if rows2 else '-'}")
+    st3.close()
+
+
 def main():
     test_pricing()
     test_store()
     test_enforce()
     test_auth()
     test_webhook()
+    test_sdk_track()
     passed = sum(1 for _, ok, _ in CHECK if ok)
     print(f"\n{'='*52}\n结果: {passed}/{len(CHECK)} 通过")
     failed = [n for n, ok, _ in CHECK if not ok]
