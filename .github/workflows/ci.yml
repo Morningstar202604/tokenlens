@@ -5,9 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # 每月 1 日 03:17 UTC 刷新模型价格表（LiteLLM 源更新后自动跟进）
+    - cron: "17 3 1 * *"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
@@ -21,7 +24,33 @@ jobs:
         run: python -m compileall -q .
       - name: 安装依赖
         run: pip install -q -r requirements.txt
+      - name: 类型检查（mypy 门禁）
+        run: |
+          pip install -q mypy
+          python -m mypy tokenlens/ --ignore-missing-imports
       - name: 单元测试
         run: python scripts/unit_test.py
       - name: 端到端冒烟测试
         run: python scripts/smoke_test.py
+
+  price-sync:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 同步 LiteLLM 价格表
+        run: python scripts/sync_pricing.py
+      - name: 有更新则提交
+        run: |
+          if git diff --quiet tokenlens/pricing_data.json; then
+            echo "价格表无变化，跳过提交"
+          else
+            git config user.name "tokenlens-bot"
+            git config user.email "bot@gitcode.com"
+            git add tokenlens/pricing_data.json
+            git commit -m "chore(pricing): 同步 LiteLLM 模型价格表"
+            git push origin main
+          fi

@@ -116,7 +116,8 @@ python -m tokenlens budget --daily 20 --monthly 400
 python -m tokenlens start       [--port 8787] [--upstream URL] [--daily 20]
 python -m tokenlens stats       [--range 7d] [--project X] [--model Y] [--json]
 python -m tokenlens top         [--field model|project|provider|endpoint|day]
-python -m tokenlens export      [--out usage.csv] [--range 30d]
+python -m tokenlens export      [--out usage.csv] [--range 30d] [--format csv|jsonl]
+python -m tokenlens import-csv  usage.csv          # 多机合并导入（按 request_id 去重）
 python -m tokenlens pricing     [--model gpt-4o] [--set-model NAME IN OUT]
 python -m tokenlens budget      [--daily 20] [--monthly 400]
 python -m tokenlens alerts      [--limit 20]
@@ -128,6 +129,13 @@ python -m tokenlens config get KEY          # 查看单个配置项
 python -m tokenlens config set KEY VALUE    # 修改配置项（自动按类型转换）
 python -m tokenlens doctor      # 环境自检
 ```
+
+**多机合并**：在每台机器上 `export` 一份 CSV，用 `import-csv` 并入汇总机；
+相同 `request_id` 的请求只保留一份（无 request_id 的行按时间+模型+token 指纹去重）。
+JSONL 导出（`--format jsonl`）每行一个 JSON 对象，天然规避 CSV 公式注入，适合程序化消费。
+
+**会话归因**：请求带 `X-TokenLens-Session: <会话ID>` 请求头（或 SDK `track(..., session_id=...)`），
+即可在仪表盘按会话下拉筛选统计/明细/导出，把多轮对话或任务级成本拆开看。
 
 ## 配置（~/.tokenlens/config.json）
 
@@ -153,9 +161,22 @@ python -m tokenlens doctor      # 环境自检
 ## 测试
 
 ```bash
-python scripts/smoke_test.py   # 端到端冒烟（39 项：转发/流式/并发/预算/拦截/SSRF/链路头/SDK/CLI）
-python scripts/unit_test.py    # 单元测试（34 项：价格表/成本/store/拦截/鉴权/webhook）
+python scripts/smoke_test.py   # 端到端冒烟（46 项：转发/流式/并发/预算/拦截/SSRF/链路头/会话归因/JSONL/SDK/CLI）
+python scripts/unit_test.py    # 单元测试（37 项：价格表/成本/store/拦截/鉴权/webhook/SDK 埋点）
+python -m mypy tokenlens/      # 类型检查门禁（CI 强制执行）
 ```
+
+## Docker 部署
+
+```bash
+docker build -t tokenlens:1.2.1 .
+docker run -d --name tokenlens -p 8787:8787 \
+  -v $HOME/.tokenlens:/root/.tokenlens tokenlens:1.2.1
+# 或 docker compose up -d（数据持久化到 ./tokenlens-data）
+```
+
+镜像以 `--host 0.0.0.0` 启动，含健康检查；配置与 SQLite 数据挂载在 `/root/.tokenlens`。
+⚠ 对外监听时修改类操作（改预算/清数据）默认被保护：先 `config set dashboard_token xxx` 再使用。
 
 ## 目录结构
 

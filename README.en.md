@@ -149,9 +149,30 @@ Quick env vars: `TOKENLENS_PORT`, `TOKENLENS_UPSTREAM`, `TOKENLENS_DAILY_BUDGET`
 ## Tests
 
 ```bash
-python scripts/smoke_test.py   # end-to-end smoke (38: proxy/streaming/concurrency/budget/enforcement/trace headers/SDK/CLI)
-python scripts/unit_test.py    # unit tests (34: pricing/cost/store/enforcement/auth/webhook)
+python scripts/smoke_test.py   # end-to-end smoke (46: proxy/streaming/concurrency/budget/enforcement/trace headers/session filter/JSONL/SDK/CLI)
+python scripts/unit_test.py    # unit tests (37: pricing/cost/store/enforcement/auth/webhook/SDK tracking)
+python -m mypy tokenlens/      # type-check gate (enforced in CI)
 ```
+
+## Docker deployment
+
+```bash
+docker build -t tokenlens:1.2.1 .
+docker run -d --name tokenlens -p 8787:8787 \
+  -v $HOME/.tokenlens:/root/.tokenlens tokenlens:1.2.1
+# or docker compose up -d (data persisted to ./tokenlens-data)
+```
+
+The image starts with `--host 0.0.0.0` and ships a health check; config and SQLite data are mounted at `/root/.tokenlens`.
+⚠ Mutating actions (budget / reset) are protected when listening on non-loopback: set `dashboard_token` first.
+
+## CLI additions
+
+- `tokenlens export --format jsonl` — JSONL export (one JSON object per line, immune to CSV formula injection).
+- `tokenlens import-csv usage.csv` — multi-machine merge import; rows are deduped by `request_id`
+  (rows without an id fall back to a ts+model+token fingerprint).
+- Session attribution: send `X-TokenLens-Session: <session-id>` (or SDK `track(..., session_id=...)`)
+  to filter the dashboard, stats and exports by conversation/session.
 
 ## Layout
 
