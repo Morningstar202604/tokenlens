@@ -24,3 +24,6 @@
 
 # 语言统计（避免生成物污染 linguist）
 *.lock   linguist-generated=true
+
+# 仪表盘前端（web/）是静态资源，不参与主导语言统计，避免误判为 HTML 项目
+tokenlens/web/** linguist-vendored=true
