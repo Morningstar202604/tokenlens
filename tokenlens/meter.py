@@ -127,6 +127,7 @@ class Meter:
             "req_bytes": int(kw.get("req_bytes") or 0),
             "resp_bytes": int(kw.get("resp_bytes") or 0),
             "request_id": kw.get("request_id") or "",
+            "session_id": kw.get("session_id") or "",
         }
         try:
             self.store.insert(rec)

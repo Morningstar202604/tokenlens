@@ -35,7 +35,8 @@ class TokenLens:
 
     def record_response(self, response: Any, *, model: Optional[str] = None,
                         project: Optional[str] = None, latency_ms: float = 0,
-                        provider: str = "custom", request_payload: Optional[Dict] = None) -> Dict:
+                        provider: str = "custom", request_payload: Optional[Dict] = None,
+                        session_id: Optional[str] = None) -> Dict:
         """从任意 OpenAI/Anthropic 风格响应对象里抽取 usage 并落库。"""
         obj = _to_dict(response)
         usage = extract_usage(obj)
@@ -56,7 +57,7 @@ class TokenLens:
         return self.meter.record(
             provider=provider, model=model, endpoint="sdk",
             project=project or self.project, latency_ms=latency_ms,
-            estimated=estimated, **usage,
+            estimated=estimated, session_id=session_id, **usage,
         )
 
 
@@ -87,7 +88,7 @@ def _to_dict(obj: Any) -> Dict:
 
 
 def track(project: str = "default", model: Optional[str] = None,
-          provider: str = "custom") -> Callable:
+          provider: str = "custom", session_id: Optional[str] = None) -> Callable:
     """装饰器：自动记录被包装函数的 LLM 调用用量。支持同步与异步函数。
 
     被包装函数抛异常时也会记录一条失败记录（status=500）再重新抛出。
@@ -99,7 +100,7 @@ def track(project: str = "default", model: Optional[str] = None,
                 provider=provider, model=model, endpoint="sdk",
                 project=project, latency_ms=(time.time() - started) * 1000,
                 status=500, error=f"sdk call failed: {sys.exc_info()[1]}"[:500],
-                estimated=True,
+                estimated=True, session_id=session_id,
             )
         except Exception as exc:
             print(f"[tokenlens] track 失败记录失败: {exc}")
@@ -125,7 +126,7 @@ def track(project: str = "default", model: Optional[str] = None,
             try:
                 lens.record_response(result, model=model, project=project,
                                      latency_ms=latency, provider=provider,
-                                     request_payload=payload)
+                                     request_payload=payload, session_id=session_id)
             except Exception as exc:
                 print(f"[tokenlens] track 失败: {exc}")
             return result

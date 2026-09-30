@@ -1,0 +1,17 @@
+# 用法: docker compose up -d
+# 默认上游与预算等通过 config.json（挂载卷内）配置，或临时用环境变量占位
+services:
+  tokenlens:
+    build: .
+    image: tokenlens:1.2.1
+    container_name: tokenlens
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./tokenlens-data:/root/.tokenlens
+    environment:
+      # 非 root 部署或需要改监听端口时取消注释
+      # TOKENLENS_HOST: "0.0.0.0"
+      # TOKENLENS_PORT: "8787"
+      TZ: Asia/Shanghai

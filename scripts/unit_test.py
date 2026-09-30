@@ -232,6 +232,16 @@ def test_sdk_track():
     rows2 = st3.recent(5)
     check("track 失败也记录", bool(rows2) and rows2[0]["status"] == 500,
           f"status={rows2[0]['status'] if rows2 else '-'}")
+
+    @track(model="gpt-4o-mini", provider="openai", session_id="sess-unit")
+    def sess_llm(messages):
+        return {"choices": [{"message": {"content": "hi"}}]}
+
+    sess_llm([{"role": "user", "content": "hello"}])
+    rows3 = st3.recent(5)
+    sess_rows = [r for r in rows3 if r.get("session_id") == "sess-unit"]
+    check("track session 归因", bool(sess_rows),
+          f"session={sess_rows[0]['session_id'] if sess_rows else '-'}")
     st3.close()
 
 

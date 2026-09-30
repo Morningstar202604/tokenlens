@@ -132,6 +132,23 @@ def cmd_export(args):
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     n = 0
+    if args.format == "jsonl":
+        with out.open("w", encoding="utf-8") as f:
+            offset = 0
+            while n < limit:
+                rows = store.export_page(5000, offset, s, e, args.project, args.model)
+                if not rows:
+                    break
+                offset += len(rows)
+                for r in rows:
+                    if n >= limit:
+                        break
+                    r = dict(r)
+                    r["ts"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
+                    f.write(json.dumps(r, ensure_ascii=False) + "\n")
+                    n += 1
+        print(f"已导出 {n} 条 -> {out}（JSONL）")
+        return
     with out.open("w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=list(first.keys()))
         w.writeheader()
@@ -153,6 +170,65 @@ def cmd_export(args):
                 w.writerow(r)
                 n += 1
     print(f"已导出 {n} 条 -> {out}")
+
+
+def cmd_import(args):
+    """多机合并导入：读取 export 生成的 CSV（或同构 CSV），
+    按 request_id 幂等去重后并入本机库。"""
+    from datetime import datetime
+    from .store import FIELDS as STORE_FIELDS
+    cfg = Config.load(args.config)
+    store, _ = _ctx(cfg)
+    path = Path(args.file)
+    if not path.exists():
+        print(f"文件不存在: {path}")
+        sys.exit(1)
+    rows, errors = [], 0
+    known = set(STORE_FIELDS)
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            print("CSV 无表头，无法导入")
+            sys.exit(1)
+        for line, raw in enumerate(reader, 2):
+            try:
+                rec = {}
+                for k, v in raw.items():
+                    if k not in known or v in ("", None):
+                        continue
+                    rec[k] = v
+                if "ts" in rec:
+                    ts = rec["ts"]
+                    if isinstance(ts, str) and "-" in ts:
+                        ts = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").timestamp()
+                    rec["ts"] = float(ts)
+                    rec["day"] = datetime.fromtimestamp(rec["ts"]).strftime("%Y-%m-%d")
+                    rec["hour"] = datetime.fromtimestamp(rec["ts"]).hour
+                for k in ("is_stream", "status", "req_bytes", "resp_bytes"):
+                    if k in rec:
+                        rec[k] = int(rec[k])
+                for k in ("prompt_tokens", "completion_tokens", "total_tokens",
+                          "cached_tokens", "reasoning_tokens", "latency_ms",
+                          "ttft_ms", "cost"):
+                    if k in rec:
+                        rec[k] = float(rec[k])
+                rows.append(rec)
+            except Exception:
+                errors += 1
+                if args.verbose:
+                    print(f"  第 {line} 行解析失败，跳过")
+    if not rows:
+        print(f"没有可导入的记录（{errors} 行解析失败）")
+        sys.exit(1)
+    try:
+        res = store.import_rows(rows)
+    except Exception as exc:
+        print(f"导入失败：{exc}")
+        print("提示：import-csv 只接受 export 生成的 CSV（逗号分隔），JSONL 请使用 export --format jsonl 生成")
+        sys.exit(1)
+    print(f"已导入 {res['imported']} 条（跳过 {res['skipped']} 条无幂等键，"
+          f"重复 {res['duplicates']} 条）→ {cfg.db_path}"
+          + (f"，{errors} 行解析失败" if errors else ""))
 
 
 def cmd_pricing(args):
@@ -335,6 +411,7 @@ def build_parser():
   tokenlens stats --range 7d                  查看 7 天汇总
   tokenlens top --field project --range 30d   按项目排行
   tokenlens export --out usage.csv            导出 CSV
+  tokenlens import-csv usage.csv              导入 CSV（多机合并去重）
   tokenlens seed-demo                         灌入演示数据
   tokenlens live                              实时查看近 60 秒流量
   tokenlens prune --days 90                   清理 90 天前的记录
@@ -367,13 +444,19 @@ def build_parser():
     s.add_argument("--limit", type=int, default=15)
     s.set_defaults(func=cmd_top)
 
-    s = sub.add_parser("export", help="导出 CSV")
+    s = sub.add_parser("export", help="导出 CSV/JSONL")
     s.add_argument("--out", default="tokenlens-usage.csv")
     s.add_argument("--range", default="30d")
     s.add_argument("--limit", type=int, default=0)
+    s.add_argument("--format", default="csv", choices=["csv", "jsonl"], help="导出格式")
     s.add_argument("--project", default=None)
     s.add_argument("--model", default=None)
     s.set_defaults(func=cmd_export)
+
+    s = sub.add_parser("import-csv", help="导入 CSV（多机合并，按 request_id 去重）")
+    s.add_argument("file", metavar="FILE", help="export 生成的 CSV 文件路径")
+    s.add_argument("--verbose", action="store_true", help="打印解析失败行")
+    s.set_defaults(func=cmd_import)
 
     s = sub.add_parser("pricing", help="查看或设置模型价格")
     s.add_argument("--model", default=None, help="查询某个模型的匹配价格")

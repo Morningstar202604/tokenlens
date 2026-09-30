@@ -38,12 +38,14 @@ CREATE TABLE IF NOT EXISTS requests (
     error             TEXT,
     req_bytes         INTEGER DEFAULT 0,
     resp_bytes        INTEGER DEFAULT 0,
-    request_id        TEXT
+    request_id        TEXT,
+    session_id        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_req_day    ON requests(day);
 CREATE INDEX IF NOT EXISTS idx_req_ts     ON requests(ts);
 CREATE INDEX IF NOT EXISTS idx_req_model  ON requests(model);
 CREATE INDEX IF NOT EXISTS idx_req_proj   ON requests(project);
+CREATE INDEX IF NOT EXISTS idx_req_sess   ON requests(session_id);
 
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +62,7 @@ FIELDS = [
     "key_hash", "is_stream", "prompt_tokens", "completion_tokens", "total_tokens",
     "cached_tokens", "reasoning_tokens", "cost", "cost_source", "latency_ms",
     "ttft_ms", "status", "error", "req_bytes", "resp_bytes", "request_id",
+    "session_id",
 ]
 
 
@@ -78,6 +81,13 @@ class Store:
         self._init()
 
     def _init(self):
+        # 存量库迁移：老版本表没有 session_id 列时先补列，再建表/索引
+        try:
+            cols = [r["name"] for r in self._local.execute("PRAGMA table_info(requests)").fetchall()]
+        except Exception:
+            cols = []
+        if cols and "session_id" not in cols:
+            self._local.execute("ALTER TABLE requests ADD COLUMN session_id TEXT")
         self._local.executescript(SCHEMA)
         self._local.commit()
 
@@ -117,10 +127,53 @@ class Store:
             )
             return len(data_list)
 
+    def import_rows(self, recs: Iterable[Dict[str, Any]]) -> Dict[str, int]:
+        """多机合并导入：按 request_id 幂等去重；无 request_id 的行按
+        (ts, key_hash, model, project, prompt_tokens, completion_tokens) 指纹
+        去重，避免重复灌入。返回 {"imported": n, "skipped": m, "duplicates": k}。"""
+        recs = list(recs)
+        if not recs:
+            return {"imported": 0, "skipped": 0, "duplicates": 0}
+        dup = 0
+        with self._lock:
+            # 1) request_id 命中库中已有 → 重复
+            ids = [r["request_id"] for r in recs if r.get("request_id")]
+            if ids:
+                for i in range(0, len(ids), 500):
+                    chunk = ids[i:i + 500]
+                    marks = ",".join("?" * len(chunk))
+                    hit = {r["request_id"] for r in self._local.execute(
+                        f"SELECT request_id FROM requests WHERE request_id IN ({marks})", chunk)}
+                    for r in recs:
+                        rid = r.get("request_id")
+                        if rid and rid in hit:
+                            r["_skip"] = True
+                            dup += 1
+            # 2) 无 request_id 的行按指纹去重（含库中已有）；ts 归一到秒，
+            #    保证“导出→导入”往返（导出只保留到秒）也能识别重复
+            fingerprint_rows = [r for r in recs if not r.get("request_id")]
+            for r in fingerprint_rows:
+                fp = (int(r.get("ts") or 0), r.get("key_hash"), r.get("model"),
+                      r.get("project"), r.get("prompt_tokens"), r.get("completion_tokens"))
+                hit = self._local.execute(
+                    "SELECT 1 FROM requests WHERE CAST(ts AS INTEGER)=? AND key_hash=? "
+                    "AND model=? AND project=? AND prompt_tokens=? AND completion_tokens=? "
+                    "LIMIT 1",
+                    fp).fetchone()
+                if hit:
+                    r["_skip"] = True
+                    dup += 1
+        fresh = [r for r in recs if not r.get("_skip")]
+        imported = self.insert_many(fresh)
+        skipped = len(recs) - imported - dup
+        return {"imported": imported, "skipped": skipped, "duplicates": dup}
+
     # ---------------- 查询 ----------------
     def _where(self, start: Optional[float], end: Optional[float],
-               project: Optional[str], model: Optional[str], provider: Optional[str]) -> tuple:
-        clauses, args = [], []
+               project: Optional[str], model: Optional[str], provider: Optional[str],
+               session: Optional[str] = None) -> tuple:
+        clauses: list = []
+        args: list = []
         if start is not None:
             clauses.append("ts >= ?")
             args.append(start)
@@ -136,11 +189,15 @@ class Store:
         if provider:
             clauses.append("provider = ?")
             args.append(provider)
+        if session:
+            clauses.append("session_id = ?")
+            args.append(session)
         return (" WHERE " + " AND ".join(clauses)) if clauses else "", args
 
-    def summary(self, start=None, end=None, project=None, model=None, provider=None) -> Dict[str, Any]:
+    def summary(self, start=None, end=None, project=None, model=None, provider=None,
+                session=None) -> Dict[str, Any]:
         with self._lock:
-            w, args = self._where(start, end, project, model, provider)
+            w, args = self._where(start, end, project, model, provider, session)
             row = self._local.execute(f"""
                 SELECT
                   COUNT(*)                                   AS requests,
@@ -181,9 +238,9 @@ class Store:
             return d
 
     def timeseries(self, bucket: str = "hour", start=None, end=None,
-                   project=None, model=None, provider=None) -> List[Dict[str, Any]]:
+                   project=None, model=None, provider=None, session=None) -> List[Dict[str, Any]]:
         with self._lock:
-            w, args = self._where(start, end, project, model, provider)
+            w, args = self._where(start, end, project, model, provider, session)
             if bucket == "day":
                 expr, fmt = "date(ts, 'unixepoch', 'localtime')", "%Y-%m-%d"
             else:
@@ -203,12 +260,12 @@ class Store:
             return [dict(r) for r in rows]
 
     def breakdown(self, field: str, start=None, end=None, project=None, model=None,
-                  provider=None, limit: int = 20) -> List[Dict[str, Any]]:
+                  provider=None, limit: int = 20, session=None) -> List[Dict[str, Any]]:
         allowed = {"model", "project", "provider", "endpoint", "day"}
         if field not in allowed:
             field = "model"
         with self._lock:
-            w, args = self._where(start, end, project, model, provider)
+            w, args = self._where(start, end, project, model, provider, session)
             rows = self._local.execute(f"""
                 SELECT COALESCE({field}, 'unknown') AS name,
                        COUNT(*)                           AS requests,
@@ -226,19 +283,19 @@ class Store:
             return [dict(r) for r in rows]
 
     def recent(self, limit: int = 50, start=None, end=None, project=None,
-               model=None, provider=None) -> List[Dict[str, Any]]:
+               model=None, provider=None, session=None) -> List[Dict[str, Any]]:
         with self._lock:
-            w, args = self._where(start, end, project, model, provider)
+            w, args = self._where(start, end, project, model, provider, session)
             rows = self._local.execute(
                 f"SELECT * FROM requests{w} ORDER BY ts DESC, id DESC LIMIT ?", args + [limit]
             ).fetchall()
             return [dict(r) for r in rows]
 
     def export_page(self, limit: int = 5000, offset: int = 0, start=None, end=None,
-                    project=None, model=None, provider=None) -> List[Dict[str, Any]]:
+                    project=None, model=None, provider=None, session=None) -> List[Dict[str, Any]]:
         """导出专用分页查询：时间正序（oldest→newest），配合流式导出控制内存。"""
         with self._lock:
-            w, args = self._where(start, end, project, model, provider)
+            w, args = self._where(start, end, project, model, provider, session)
             rows = self._local.execute(
                 f"SELECT * FROM requests{w} ORDER BY ts ASC, id ASC LIMIT ? OFFSET ?",
                 args + [limit, offset]
@@ -265,7 +322,7 @@ class Store:
             return dict(row) if row else {"requests": 0, "errors": 0, "tokens": 0, "cost": 0}
 
     def distinct(self, field: str) -> List[str]:
-        if field not in {"model", "project", "provider", "endpoint"}:
+        if field not in {"model", "project", "provider", "endpoint", "session_id"}:
             return []
         with self._lock:
             rows = self._local.execute(

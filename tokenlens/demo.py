@@ -43,6 +43,12 @@ def seed(store: Store, meter: Meter, n: int = 600, days: int = 7, seed_val: int 
         ts = now - ago
         dt = datetime.fromtimestamp(ts)
 
+        # 会话归因：约 7 成请求归属到 12 个会话之一，其余不携带
+        if rng.random() < 0.7:
+            session_id = f"sess-{rng.choice(['rag','code','chat','doc','exp'])}-{rng.randint(1, 3)}"
+        else:
+            session_id = ""
+
         mult = rng.choice([0.4, 0.7, 1.0, 1.0, 1.4, 2.2, 4.0])
         prompt = max(1, int(pin * mult * rng.uniform(0.75, 1.3)))
         completion = max(0, int(pout * mult * rng.uniform(0.7, 1.4))) if pout else 0
@@ -77,6 +83,7 @@ def seed(store: Store, meter: Meter, n: int = 600, days: int = 7, seed_val: int 
             "error": ("rate_limit_exceeded" if failed and rng.random() < 0.5 else "") if failed else "",
             "req_bytes": prompt * 4,
             "resp_bytes": completion * 4,
+            "session_id": session_id,
         }
         rec["cost"] = meter.calc.compute(model, rec["prompt_tokens"],
                                          rec["completion_tokens"], cached)

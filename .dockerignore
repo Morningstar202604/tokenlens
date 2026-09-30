@@ -1,0 +1,12 @@
+.git
+.gitignore
+.github
+docs
+examples
+scripts
+*.db
+*.csv
+tokenlens-data
+__pycache__
+*.pyc
+.pytest_cache

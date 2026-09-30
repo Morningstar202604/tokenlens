@@ -32,10 +32,23 @@ HOP_HEADERS = {
 
 
 class ProxyContext:
-    """一次转发过程中的共享状态。"""
+    """一次转发过程中的共享状态。字段显式声明以便静态检查。"""
 
-    def __init__(self, **kw):
-        self.__dict__.update(kw)
+    def __init__(self, provider: str, upstream: str, model: Optional[str],
+                 endpoint: str, project: str, key_hash: str, is_stream: bool,
+                 request_id: str, started: float, req_bytes: int,
+                 session_id: str = ""):
+        self.provider = provider
+        self.upstream = upstream
+        self.model = model
+        self.endpoint = endpoint
+        self.project = project
+        self.key_hash = key_hash
+        self.is_stream = is_stream
+        self.request_id = request_id
+        self.started = started
+        self.req_bytes = req_bytes
+        self.session_id = session_id
 
 
 def _split_alias(path: str, cfg: Config) -> tuple:
@@ -114,7 +127,7 @@ def _reject_unsafe_upstream(url: str, allow_private: bool) -> Optional[str]:
         return None  # 解析失败交由上游自然报错，不阻塞合法域名
     seen = set()
     for info in infos[:8]:
-        ip = info[4][0]
+        ip = str(info[4][0])
         if ip in seen:
             continue
         seen.add(ip)
@@ -172,6 +185,7 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                    or request.headers.get("x-title")
                    or request.headers.get("x-tokenlens-app")
                    or "default")
+        session_id = request.headers.get("x-tokenlens-session", "")[:128]
         auth = request.headers.get("authorization", "")
         if auth.lower().startswith("bearer "):
             api_key = auth[7:].strip()
@@ -182,7 +196,7 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
             provider=provider_from_url(base), upstream=base, model=model,
             endpoint=("/" + rest) if rest else "/", project=project,
             key_hash=key_hash(api_key), is_stream=is_stream, request_id=rid,
-            started=started, req_bytes=len(body),
+            started=started, req_bytes=len(body), session_id=session_id,
         )
 
         # 预算硬拦截：超限直接 402 拒绝，不转发上游
@@ -195,7 +209,8 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                     endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
                     is_stream=is_stream, status=402, error=reason,
                     latency_ms=(time.time() - started) * 1000,
-                    req_bytes=ctx.req_bytes, request_id=rid, estimated=True,
+                    req_bytes=ctx.req_bytes, request_id=rid,
+                    session_id=ctx.session_id, estimated=True,
                 )
                 return JSONResponse(
                     {"error": {"message": f"tokenlens: {reason}",
@@ -216,10 +231,9 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
         headers = _client_headers(request)
         headers.pop("x-tokenlens-upstream", None)
 
-        req_args = dict(method=request.method, url=target, content=body, headers=headers)
-
         try:
-            upstream_req = client.build_request(**req_args)
+            upstream_req = client.build_request(request.method, target,
+                                                content=body, headers=headers)
             resp = await client.send(upstream_req, stream=is_stream)
         except Exception as exc:
             await asyncio.to_thread(
@@ -228,7 +242,7 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                 endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
                 is_stream=is_stream, status=502, error=f"upstream error: {exc}",
                 latency_ms=(time.time() - started) * 1000, req_bytes=ctx.req_bytes,
-                request_id=rid, estimated=True,
+                request_id=rid, session_id=ctx.session_id, estimated=True,
             )
             return JSONResponse({"error": {"message": f"tokenlens: 上游连接失败 {exc}",
                                            "type": "upstream_error"}}, status_code=502)
@@ -286,7 +300,8 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
             endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
             is_stream=ctx.is_stream, status=status, error=error,
             latency_ms=latency, req_bytes=ctx.req_bytes, resp_bytes=len(raw),
-            request_id=ctx.request_id, estimated=bool(usage.get("estimated")),
+            request_id=ctx.request_id, session_id=ctx.session_id,
+            estimated=bool(usage.get("estimated")),
             **{k: v for k, v in usage.items() if k != "estimated"},
         )
         # 链路追踪：响应头回传本次成本与用量（流式无法预知，SSE 内自带 usage）
@@ -375,6 +390,7 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                     latency_ms=(time.time() - started) * 1000 if done else 0,
                     ttft_ms=collected.get("ttft"), req_bytes=ctx.req_bytes,
                     resp_bytes=collected["bytes"], request_id=ctx.request_id,
+                    session_id=ctx.session_id,
                     estimated=bool(usage.pop("estimated", False)), **usage,
                 )
 

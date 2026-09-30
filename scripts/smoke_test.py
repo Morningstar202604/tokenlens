@@ -145,6 +145,35 @@ def main():
         ts = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/timeseries?rng=all").json()
         check("时序有数据", len(ts) >= 1)
 
+        # 会话归因：带 X-TokenLens-Session 的请求可被独立筛选
+        r = c.post(f"{BASE}/chat/completions", json={
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": "session 归因测试"}],
+        }, headers={"X-TokenLens-Session": "sess-smoke-1"})
+        check("带会话请求 200", r.status_code == 200, str(r.status_code))
+        time.sleep(0.3)
+        filters = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/filters").json()
+        check("filters 返回会话列表", "sess-smoke-1" in filters.get("sessions", []),
+              json.dumps(filters.get("sessions", []), ensure_ascii=False)[:120])
+        sess_recent = httpx.get(
+            f"http://127.0.0.1:{PROXY_PORT}/api/recent?limit=50&rng=all&session=sess-smoke-1").json()
+        check("按会话筛选明细", len(sess_recent) == 1 and sess_recent[0]["session_id"] == "sess-smoke-1",
+              f"{len(sess_recent)} 条")
+        sess_stats = httpx.get(
+            f"http://127.0.0.1:{PROXY_PORT}/api/stats?rng=all&session=sess-smoke-1").json()
+        check("按会话筛选统计", sess_stats["requests"] == 1, f"{sess_stats['requests']} 条")
+        sess_bd = httpx.get(
+            f"http://127.0.0.1:{PROXY_PORT}/api/breakdown?field=model&rng=all&session=sess-smoke-1").json()
+        check("按会话筛选聚合", len(sess_bd) == 1, json.dumps(sess_bd, ensure_ascii=False)[:120])
+
+        # JSONL 导出：逐行可解析
+        jl = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/export-jsonl?rng=all")
+        check("export-jsonl 200", jl.status_code == 200 and "ndjson" in jl.headers.get("content-type", ""),
+              f"{jl.status_code} {jl.headers.get('content-type')}")
+        lines = [ln for ln in jl.text.splitlines() if ln.strip()]
+        check("export-jsonl 每行合法 JSON", len(lines) >= 5 and all(
+            json.loads(ln) for ln in lines[:3]), f"{len(lines)} 行")
+
         print("\n[8] 仪表盘页面")
         r = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/")
         check("首页可访问", r.status_code == 200 and "TokenLens" in r.text)

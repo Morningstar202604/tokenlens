@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 __version__ = "1.2.1"  # 与 pyproject.toml 保持一致
 
 from .config import Config
@@ -30,9 +32,10 @@ def configure(cfg=None, project: str = "default"):
     return _c(cfg, project)
 
 
-def track(project: str = "default", model=None, provider: str = "custom"):
+def track(project: str = "default", model=None, provider: str = "custom",
+          session_id: Optional[str] = None):
     from .sdk import track as _t
-    return _t(project, model, provider)
+    return _t(project, model, provider, session_id)
 
 
 def patch_openai(project: str = "default"):

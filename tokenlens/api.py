@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import time
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -116,35 +117,39 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
 
     @router.get("/stats")
     def stats(rng: str = "today", project: Optional[str] = None,
-              model: Optional[str] = None, provider: Optional[str] = None):
+              model: Optional[str] = None, provider: Optional[str] = None,
+              session: Optional[str] = None):
         s, e = parse_range(rng)
-        data = store.summary(s, e, project, model, provider)
+        data = store.summary(s, e, project, model, provider, session)
         data["range"] = rng
         data["generated_at"] = datetime.now().isoformat(timespec="seconds")
         return data
 
     @router.get("/timeseries")
     def timeseries(rng: str = "today", bucket: str = "hour", project: Optional[str] = None,
-                   model: Optional[str] = None, provider: Optional[str] = None):
+                   model: Optional[str] = None, provider: Optional[str] = None,
+                   session: Optional[str] = None):
         s, e = parse_range(rng)
         if rng in ("30d", "90d", "all", "month"):
             bucket = "day"
-        rows = store.timeseries(bucket, s, e, project, model, provider)
+        rows = store.timeseries(bucket, s, e, project, model, provider, session)
         return _fill_gaps(rows, bucket, s, e, rng)
 
     @router.get("/breakdown")
     def breakdown(field: str = "model", rng: str = "today", project: Optional[str] = None,
-                  model: Optional[str] = None, provider: Optional[str] = None, limit: int = 20):
+                  model: Optional[str] = None, provider: Optional[str] = None, limit: int = 20,
+                  session: Optional[str] = None):
         if field not in {"model", "project", "provider", "endpoint", "day"}:
             raise HTTPException(400, "unsupported field")
         s, e = parse_range(rng)
-        return store.breakdown(field, s, e, project, model, provider, limit)
+        return store.breakdown(field, s, e, project, model, provider, limit, session)
 
     @router.get("/recent")
     def recent(limit: int = 50, rng: str = "today", project: Optional[str] = None,
-               model: Optional[str] = None, provider: Optional[str] = None):
+               model: Optional[str] = None, provider: Optional[str] = None,
+               session: Optional[str] = None):
         s, e = parse_range(rng)
-        return store.recent(min(limit, 500), s, e, project, model, provider)
+        return store.recent(min(limit, 500), s, e, project, model, provider, session)
 
     @router.get("/budget")
     def budget():
@@ -157,6 +162,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
             "projects": store.distinct("project"),
             "providers": store.distinct("provider"),
             "endpoints": store.distinct("endpoint"),
+            "sessions": [s for s in store.distinct("session_id") if s][:100],
         }
 
     @router.post("/budget", dependencies=[Depends(require_write)])
@@ -231,9 +237,10 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     # ---------- 导出 ----------
     @router.get("/export")
     def export(rng: str = "30d", project: Optional[str] = None,
-               model: Optional[str] = None, provider: Optional[str] = None):
+               model: Optional[str] = None, provider: Optional[str] = None,
+               session: Optional[str] = None):
         s, e = parse_range(rng)
-        first_page = store.export_page(1, 0, s, e, project, model, provider)
+        first_page = store.export_page(1, 0, s, e, project, model, provider, session)
         if not first_page:
             raise HTTPException(404, "所选范围暂无数据可导出")
         first = first_page[0]
@@ -258,7 +265,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
             buf.truncate()
             offset = 0
             while True:
-                rows = store.export_page(5000, offset, s, e, project, model, provider)
+                rows = store.export_page(5000, offset, s, e, project, model, provider, session)
                 if not rows:
                     break
                 offset += len(rows)
@@ -271,6 +278,31 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
         return StreamingResponse(
             gen(), media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": 'attachment; filename="tokenlens-usage.csv"'})
+
+    @router.get("/export-jsonl")
+    def export_jsonl(rng: str = "30d", project: Optional[str] = None,
+                     model: Optional[str] = None, provider: Optional[str] = None,
+                     session: Optional[str] = None):
+        """JSONL 导出：每行一个 JSON 对象，天然规避 CSV 公式注入，适合程序化消费。"""
+        s, e = parse_range(rng)
+        if not store.export_page(1, 0, s, e, project, model, provider, session):
+            raise HTTPException(404, "所选范围暂无数据可导出")
+
+        def gen():
+            offset = 0
+            while True:
+                rows = store.export_page(5000, offset, s, e, project, model, provider, session)
+                if not rows:
+                    break
+                offset += len(rows)
+                for r in rows:
+                    r = dict(r)
+                    r["ts"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
+                    yield json.dumps(r, ensure_ascii=False) + "\n"
+
+        return StreamingResponse(
+            gen(), media_type="application/x-ndjson",
+            headers={"Content-Disposition": 'attachment; filename="tokenlens-usage.jsonl"'})
 
     # ---------- 告警历史 ----------
     @router.get("/alerts")
