@@ -614,7 +614,7 @@ function renderRank(rows){
     grid:{left:10, right:70, top:8, bottom:8, containLabel:true},
     tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#1C2A3A', borderColor:'#1F2A3A',
              textStyle:{color:'#E6EBF5', fontSize:12},
-             formatter:p=>`${p[0].name}<br/>${usd(p[0].value)}`},
+             formatter:p=>`${esc(p[0].name)}<br/>${usd(p[0].value)}`},
     xAxis:{type:'value', splitLine:{lineStyle:{color:'rgba(31,42,58,.5)'}}, axisLabel:{color:'#5F6B81', fontSize:11}},
     yAxis:{type:'category', data:names, axisLine:{show:false}, axisTick:{show:false},
            axisLabel:{color:'#94A3B8', fontSize:12}},
@@ -684,7 +684,7 @@ ${r.error?('错误: '+esc(r.error)):''}</pre></div></td></tr>` : '';
 }
 window.toggleRow = id => { __openId = __openId===id ? null : id; applyTable(); };
 
-function renderTable(rows){ __rows = rows||[]; S.page = 0; applyTable(); }
+function renderTable(rows){ __rows = rows||[]; applyTable(); }
 
 /* ---------------- 筛选 / 告警 ---------------- */
 function renderFilters(f){
@@ -724,12 +724,12 @@ function bindSeg(id, key, mapKey, cb){
     cb && cb();
   });
 }
-bindSeg('range','range','r', refresh);
+bindSeg('range','range','r', ()=>{ S.page=0; refresh(); });
 bindSeg('metric','metric','m', ()=>renderChart(__ts));
-bindSeg('dim','dim','d', refresh);
+bindSeg('dim','dim','d', ()=>{ S.page=0; refresh(); });
 
-$('f-project').addEventListener('change', e=>{ S.project=e.target.value; refresh(); });
-$('f-model').addEventListener('change', e=>{ S.model=e.target.value; refresh(); });
+$('f-project').addEventListener('change', e=>{ S.project=e.target.value; S.page=0; refresh(); });
+$('f-model').addEventListener('change', e=>{ S.model=e.target.value; S.page=0; refresh(); });
 $('f-status').addEventListener('change', e=>{ S.status=e.target.value; S.page=0; applyTable(); });
 $('f-provider').addEventListener('change', e=>{ S.provider=e.target.value; S.page=0; applyTable(); });
 

@@ -121,6 +121,7 @@ python -m tokenlens pricing     [--model gpt-4o] [--set-model NAME IN OUT]
 python -m tokenlens budget      [--daily 20] [--monthly 400]
 python -m tokenlens alerts      [--limit 20]
 python -m tokenlens seed-demo   [--n 600] [--days 7]
+python -m tokenlens prune       [--days N]   # 清理 N 天前的记录（默认取 retention_days）
 python -m tokenlens reset       # 清空数据
 python -m tokenlens live        # 实时查看近 60 秒流量
 python -m tokenlens config get KEY          # 查看单个配置项
@@ -144,13 +145,15 @@ python -m tokenlens doctor      # 环境自检
 | `dashboard_token` | 空 | 仪表盘访问令牌（留空不鉴权；配置后 API 需 `Authorization: Bearer <token>`） |
 | `enforce_budget` | true | 预算硬拦截开关（超限请求 402 拒绝） |
 | `enforce_budget_ratio` | 1.0 | 拦截阈值（占预算比例，0.8 = 用到 80% 就拦） |
+| `allow_private_upstreams` | false | 是否允许请求头/查询参数把上游指向内网地址（默认禁止，防 SSRF；配置里的 `upstreams` 不受影响） |
+| `retention_days` | 0 | 数据保留天数（0 = 不清理）；`tokenlens prune` 按此清理 |
 
 环境变量速配：`TOKENLENS_PORT`、`TOKENLENS_UPSTREAM`、`TOKENLENS_DAILY_BUDGET`。
 
 ## 测试
 
 ```bash
-python scripts/smoke_test.py   # 端到端冒烟（38 项：转发/流式/并发/预算/拦截/链路头/SDK/CLI）
+python scripts/smoke_test.py   # 端到端冒烟（39 项：转发/流式/并发/预算/拦截/SSRF/链路头/SDK/CLI）
 python scripts/unit_test.py    # 单元测试（34 项：价格表/成本/store/拦截/鉴权/webhook）
 ```
 
@@ -181,5 +184,13 @@ tokenlens/
 - 只记录元数据（模型、token、成本、延迟、状态、字节量），不记录 prompt / 响应内容
 - Authorization 头仅转发不落库，API Key 只存 SHA-256 前 12 位指纹
 - 单机单进程 SQLite，适合个人与中小团队本地网关；跨机汇总可定期 `export` CSV
+
+## 安全
+
+- **上游地址校验（防 SSRF）**：通过 `X-TokenLens-Upstream` 头 / `?upstream=` 参数指定的上游只允许 http/https，且默认拒绝回环、私网、链路本地等地址；确需转发到内网模型服务时设置 `allow_private_upstreams = true`（仅放开该校验）
+- **对外监听保护**：`host` 非回环且未设置 `dashboard_token` 时，修改类接口（配置 / 预算 / 清空 / 灌数据）返回 401，需先配置访问令牌
+- **仪表盘 XSS 防护**：明细表、告警列表、图表 tooltip 渲染的用户可控字段（模型名 / 项目 / 错误信息）均已 HTML 转义
+- **CSV 导出防护**：以 `=` `+` `-` `@` 等开头的字段导出时前置单引号，避免 Excel/WPS 公式注入
+- 建议仅监听 `127.0.0.1`；若对外暴露，务必配置 `dashboard_token`
 
 仓库地址：<https://gitcode.com/badhope/tokenlens>

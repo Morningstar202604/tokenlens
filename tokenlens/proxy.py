@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -50,6 +51,81 @@ def _client_headers(req: Request) -> Dict[str, str]:
     return {k: v for k, v in req.headers.items() if k.lower() not in HOP_HEADERS}
 
 
+# 内网 / 回环 / 链路本地等不可作为上游的地址段（IPv4 + IPv6）
+_PRIVATE_NETS = (
+    ("127.0.0.0/8", "loopback"), ("10.0.0.0/8", "private"), ("172.16.0.0/12", "private"),
+    ("192.168.0.0/16", "private"), ("169.254.0.0/16", "link-local"), ("0.0.0.0/8", "unspecified"),
+    ("::1/128", "loopback"), ("fc00::/7", "private"), ("fe80::/10", "link-local"),
+    ("::ffff:0:0/96", "ipv4-mapped"), ("::/128", "unspecified"),
+)
+_LOCAL_HOSTS = {"localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"}
+
+
+def _ip_in_nets(ip: str) -> Optional[str]:
+    """返回 ip 命中的保留网段名，未命中返回 None。"""
+    import ipaddress
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return None
+    for net, tag in _PRIVATE_NETS:
+        if addr in ipaddress.ip_network(net):
+            return tag
+    return None
+
+
+def _reject_unsafe_upstream(url: str, allow_private: bool) -> Optional[str]:
+    """校验用户可控的上游地址（请求头/查询参数注入）。
+
+    返回拒绝原因字符串；通过校验返回 None。
+    """
+    if not url or not url.strip():
+        return "空地址"
+    lowered = url.strip().lower()
+    if not lowered.startswith(("http://", "https://")):
+        return "仅支持 http/https 协议"
+    from urllib.parse import urlparse
+    try:
+        host = urlparse(lowered).hostname
+        port = urlparse(lowered).port
+    except ValueError as exc:
+        return f"URL 解析失败: {exc}"
+    if not host:
+        return "缺少主机名"
+    host = host.rstrip(".").lower()
+    if host in _LOCAL_HOSTS or host.endswith(".localhost"):
+        return "禁止指向本机地址（localhost）"
+    if allow_private:
+        return None
+    import ipaddress
+    try:
+        # 主机名本身是 IP：直接查保留段
+        ipaddress.ip_address(host)
+        tag = _ip_in_nets(host)
+        if tag:
+            return f"禁止指向{tag}网段地址（{host}）"
+    except ValueError:
+        pass
+    # 域名：解析后检查是否落到保留段
+    import socket
+    try:
+        infos = socket.getaddrinfo(host, port or 443, proto=socket.IPPROTO_TCP)
+    except Exception:
+        return None  # 解析失败交由上游自然报错，不阻塞合法域名
+    seen = set()
+    for info in infos[:8]:
+        ip = info[4][0]
+        if ip in seen:
+            continue
+        seen.add(ip)
+        if ":" in ip and not ip.startswith("::ffff:"):
+            ip = ip.split("%")[0]
+        tag = _ip_in_nets(ip)
+        if tag:
+            return f"域名 {host} 解析到{tag}网段地址（{ip}），已拒绝"
+    return None
+
+
 def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncClient):
 
     async def _forward(request: Request, path: str):
@@ -63,6 +139,15 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
         if alias:
             base = cfg.upstreams[alias]
         elif override:
+            reject = _reject_unsafe_upstream(override, cfg.allow_private_upstreams)
+            if reject:
+                # 安全拦截不落库：恶意探测请求没有统计价值，避免污染用量报表
+                return JSONResponse(
+                    {"error": {"message": f"tokenlens: 上游地址被拒绝：{reject}",
+                               "type": "invalid_upstream"}},
+                    status_code=400,
+                    headers={"x-tokenlens-id": rid},
+                )
             base = override
         else:
             base = cfg.default_upstream
@@ -104,7 +189,8 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
         if cfg.enforce_budget:
             reason = meter.enforce_check()
             if reason:
-                meter.record(
+                await asyncio.to_thread(
+                    meter.record,
                     provider=ctx.provider, upstream=ctx.upstream, model=ctx.model,
                     endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
                     is_stream=is_stream, status=402, error=reason,
@@ -136,7 +222,8 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
             upstream_req = client.build_request(**req_args)
             resp = await client.send(upstream_req, stream=is_stream)
         except Exception as exc:
-            meter.record(
+            await asyncio.to_thread(
+                meter.record,
                 provider=ctx.provider, upstream=ctx.upstream, model=ctx.model,
                 endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
                 is_stream=is_stream, status=502, error=f"upstream error: {exc}",
@@ -156,9 +243,11 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
 
     async def _buffered_response(client, resp, ctx, status, resp_headers, started, payload):
         raw = b""
+        done = False
         try:
             async for chunk in resp.aiter_bytes():
                 raw += chunk
+            done = True
         except Exception as exc:
             raw = raw or b""
             resp_headers.pop("content-length", None)
@@ -168,7 +257,8 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
         finally:
             await resp.aclose()   # 共享连接池由 app 生命周期统一关闭，这里不关 client
 
-        latency = (time.time() - started) * 1000
+        # 客户端提前断开时从开始到断开的时长会虚高，污染 avg/p95，中断场景不计入
+        latency = (time.time() - started) * 1000 if done else 0
         try:
             data = json.loads(raw) if raw else {}
         except Exception:
@@ -190,7 +280,8 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
             err = data.get("error")
             error = json.dumps(err, ensure_ascii=False)[:500] if err else (error or f"HTTP {status}")
 
-        meter.record(
+        await asyncio.to_thread(
+            meter.record,
             provider=ctx.provider, upstream=ctx.upstream, model=ctx.model,
             endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
             is_stream=ctx.is_stream, status=status, error=error,
@@ -246,6 +337,7 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
 
         async def gen():
             nonlocal buf
+            done = False
             try:
                 async for chunk in resp.aiter_bytes():
                     if collected["ttft"] is None and chunk:
@@ -257,6 +349,7 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                     while "\n" in buf:
                         line, buf = buf.split("\n", 1)
                         handle_line(line)
+                done = True
             except Exception as exc:
                 collected["error"] = f"stream aborted: {exc}"[:300]
             finally:
@@ -273,11 +366,13 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                 if not usage.get("prompt_tokens") and usage.get("completion_tokens"):
                     usage["prompt_tokens"] = 0
                     usage["estimated"] = True
-                meter.record(
+                await asyncio.to_thread(
+                    meter.record,
                     provider=ctx.provider, upstream=ctx.upstream, model=ctx.model,
                     endpoint=ctx.endpoint, project=ctx.project, key_hash=ctx.key_hash,
                     is_stream=1, status=status, error=collected.get("error"),
-                    latency_ms=(time.time() - started) * 1000,
+                    # 流未完整转发（客户端断开）时延迟不计入，避免虚高污染统计
+                    latency_ms=(time.time() - started) * 1000 if done else 0,
                     ttft_ms=collected.get("ttft"), req_bytes=ctx.req_bytes,
                     resp_bytes=collected["bytes"], request_id=ctx.request_id,
                     estimated=bool(usage.pop("estimated", False)), **usage,

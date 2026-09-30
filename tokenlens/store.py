@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from typing import Any, Dict, Iterable, List, Optional
@@ -72,6 +73,8 @@ class Store:
         self._local.row_factory = sqlite3.Row
         self._local.execute("PRAGMA journal_mode=WAL")
         self._local.execute("PRAGMA busy_timeout=5000")
+        # 长连接会被 API 线程池与 record 线程池并发访问，必须串行化
+        self._lock = threading.Lock()
         self._init()
 
     def _init(self):
@@ -136,131 +139,151 @@ class Store:
         return (" WHERE " + " AND ".join(clauses)) if clauses else "", args
 
     def summary(self, start=None, end=None, project=None, model=None, provider=None) -> Dict[str, Any]:
-        w, args = self._where(start, end, project, model, provider)
-        row = self._local.execute(f"""
-            SELECT
-              COUNT(*)                                   AS requests,
-              COALESCE(SUM(status >= 400), 0)            AS errors,
-              COALESCE(SUM(prompt_tokens), 0)            AS prompt_tokens,
-              COALESCE(SUM(completion_tokens), 0)        AS completion_tokens,
-              COALESCE(SUM(total_tokens), 0)             AS total_tokens,
-              COALESCE(SUM(cached_tokens), 0)            AS cached_tokens,
-              COALESCE(SUM(reasoning_tokens), 0)         AS reasoning_tokens,
-              COALESCE(SUM(cost), 0)                     AS cost,
-              COALESCE(AVG(latency_ms), 0)               AS avg_latency,
-              COALESCE(AVG(CASE WHEN is_stream=1 THEN ttft_ms END), 0) AS avg_ttft,
-              COALESCE(SUM(is_stream), 0)                AS streamed
-            FROM requests{w}
-        """, args).fetchone()
-        d = dict(row)
-        # p95 延迟：SQL 端只取分位那一行，避免把整列延迟拉到 Python
-        w2 = f"{w} AND latency_ms > 0" if w else " WHERE latency_ms > 0"
-        n = self._local.execute(f"SELECT COUNT(*) FROM requests{w2}", args).fetchone()[0]
-        if n > 1:
-            off = max(int(n * 0.95) - 1, 0)
-            row = self._local.execute(
-                f"SELECT latency_ms FROM requests{w2} ORDER BY latency_ms LIMIT 1 OFFSET {off}",
-                args).fetchone()
-            d["p95_latency"] = row[0] if row else 0
-        elif n == 1:
-            row = self._local.execute(
-                f"SELECT latency_ms FROM requests{w2} ORDER BY latency_ms LIMIT 1",
-                args).fetchone()
-            d["p95_latency"] = row[0] if row else 0
-        else:
-            d["p95_latency"] = 0
-        d["avg_latency"] = round(d["avg_latency"] or 0, 1)
-        d["avg_ttft"] = round(d["avg_ttft"] or 0, 1)
-        d["p95_latency"] = round(d["p95_latency"] or 0, 1)
-        d["cost"] = round(d["cost"] or 0, 6)
-        d["error_rate"] = round((d["errors"] or 0) / d["requests"], 4) if d["requests"] else 0
-        return d
+        with self._lock:
+            w, args = self._where(start, end, project, model, provider)
+            row = self._local.execute(f"""
+                SELECT
+                  COUNT(*)                                   AS requests,
+                  COALESCE(SUM(status >= 400), 0)            AS errors,
+                  COALESCE(SUM(prompt_tokens), 0)            AS prompt_tokens,
+                  COALESCE(SUM(completion_tokens), 0)        AS completion_tokens,
+                  COALESCE(SUM(total_tokens), 0)             AS total_tokens,
+                  COALESCE(SUM(cached_tokens), 0)            AS cached_tokens,
+                  COALESCE(SUM(reasoning_tokens), 0)         AS reasoning_tokens,
+                  COALESCE(SUM(cost), 0)                     AS cost,
+                  COALESCE(AVG(latency_ms), 0)               AS avg_latency,
+                  COALESCE(AVG(CASE WHEN is_stream=1 THEN ttft_ms END), 0) AS avg_ttft,
+                  COALESCE(SUM(is_stream), 0)                AS streamed
+                FROM requests{w}
+            """, args).fetchone()
+            d = dict(row)
+            # p95 延迟：SQL 端只取分位那一行，避免把整列延迟拉到 Python
+            w2 = f"{w} AND latency_ms > 0" if w else " WHERE latency_ms > 0"
+            n = self._local.execute(f"SELECT COUNT(*) FROM requests{w2}", args).fetchone()[0]
+            if n > 1:
+                off = max(int(n * 0.95) - 1, 0)
+                row = self._local.execute(
+                    f"SELECT latency_ms FROM requests{w2} ORDER BY latency_ms LIMIT 1 OFFSET {off}",
+                    args).fetchone()
+                d["p95_latency"] = row[0] if row else 0
+            elif n == 1:
+                row = self._local.execute(
+                    f"SELECT latency_ms FROM requests{w2} ORDER BY latency_ms LIMIT 1",
+                    args).fetchone()
+                d["p95_latency"] = row[0] if row else 0
+            else:
+                d["p95_latency"] = 0
+            d["avg_latency"] = round(d["avg_latency"] or 0, 1)
+            d["avg_ttft"] = round(d["avg_ttft"] or 0, 1)
+            d["p95_latency"] = round(d["p95_latency"] or 0, 1)
+            d["cost"] = round(d["cost"] or 0, 6)
+            d["error_rate"] = round((d["errors"] or 0) / d["requests"], 4) if d["requests"] else 0
+            return d
 
     def timeseries(self, bucket: str = "hour", start=None, end=None,
                    project=None, model=None, provider=None) -> List[Dict[str, Any]]:
-        w, args = self._where(start, end, project, model, provider)
-        if bucket == "day":
-            expr, fmt = "date(ts, 'unixepoch', 'localtime')", "%Y-%m-%d"
-        else:
-            expr, fmt = "strftime('%Y-%m-%d %H:00', ts, 'unixepoch', 'localtime')", "%Y-%m-%d %H:00"
-        rows = self._local.execute(f"""
-            SELECT {expr} AS bucket,
-                   COUNT(*)                            AS requests,
-                   COALESCE(SUM(status >= 400),0)      AS errors,
-                   COALESCE(SUM(prompt_tokens),0)      AS prompt_tokens,
-                   COALESCE(SUM(completion_tokens),0)  AS completion_tokens,
-                   COALESCE(SUM(total_tokens),0)       AS total_tokens,
-                   COALESCE(SUM(cost),0)               AS cost,
-                   COALESCE(AVG(latency_ms),0)         AS avg_latency
-            FROM requests{w}
-            GROUP BY bucket ORDER BY bucket
-        """, args).fetchall()
-        return [dict(r) for r in rows]
+        with self._lock:
+            w, args = self._where(start, end, project, model, provider)
+            if bucket == "day":
+                expr, fmt = "date(ts, 'unixepoch', 'localtime')", "%Y-%m-%d"
+            else:
+                expr, fmt = "strftime('%Y-%m-%d %H:00', ts, 'unixepoch', 'localtime')", "%Y-%m-%d %H:00"
+            rows = self._local.execute(f"""
+                SELECT {expr} AS bucket,
+                       COUNT(*)                            AS requests,
+                       COALESCE(SUM(status >= 400),0)      AS errors,
+                       COALESCE(SUM(prompt_tokens),0)      AS prompt_tokens,
+                       COALESCE(SUM(completion_tokens),0)  AS completion_tokens,
+                       COALESCE(SUM(total_tokens),0)       AS total_tokens,
+                       COALESCE(SUM(cost),0)               AS cost,
+                       COALESCE(AVG(latency_ms),0)         AS avg_latency
+                FROM requests{w}
+                GROUP BY bucket ORDER BY bucket
+            """, args).fetchall()
+            return [dict(r) for r in rows]
 
     def breakdown(self, field: str, start=None, end=None, project=None, model=None,
                   provider=None, limit: int = 20) -> List[Dict[str, Any]]:
         allowed = {"model", "project", "provider", "endpoint", "day"}
         if field not in allowed:
             field = "model"
-        w, args = self._where(start, end, project, model, provider)
-        rows = self._local.execute(f"""
-            SELECT COALESCE({field}, 'unknown') AS name,
-                   COUNT(*)                           AS requests,
-                   COALESCE(SUM(status >= 400),0)    AS errors,
-                   COALESCE(SUM(prompt_tokens),0)    AS prompt_tokens,
-                   COALESCE(SUM(completion_tokens),0) AS completion_tokens,
-                   COALESCE(SUM(total_tokens),0)     AS total_tokens,
-                   COALESCE(SUM(cost),0)             AS cost,
-                   COALESCE(AVG(latency_ms),0)       AS avg_latency
-            FROM requests{w}
-            GROUP BY {field}
-            ORDER BY cost DESC
-            LIMIT ?
-        """, args + [limit]).fetchall()
-        return [dict(r) for r in rows]
+        with self._lock:
+            w, args = self._where(start, end, project, model, provider)
+            rows = self._local.execute(f"""
+                SELECT COALESCE({field}, 'unknown') AS name,
+                       COUNT(*)                           AS requests,
+                       COALESCE(SUM(status >= 400),0)    AS errors,
+                       COALESCE(SUM(prompt_tokens),0)    AS prompt_tokens,
+                       COALESCE(SUM(completion_tokens),0) AS completion_tokens,
+                       COALESCE(SUM(total_tokens),0)     AS total_tokens,
+                       COALESCE(SUM(cost),0)             AS cost,
+                       COALESCE(AVG(latency_ms),0)       AS avg_latency
+                FROM requests{w}
+                GROUP BY {field}
+                ORDER BY cost DESC
+                LIMIT ?
+            """, args + [limit]).fetchall()
+            return [dict(r) for r in rows]
 
     def recent(self, limit: int = 50, start=None, end=None, project=None,
                model=None, provider=None) -> List[Dict[str, Any]]:
-        w, args = self._where(start, end, project, model, provider)
-        rows = self._local.execute(
-            f"SELECT * FROM requests{w} ORDER BY ts DESC, id DESC LIMIT ?", args + [limit]
-        ).fetchall()
-        return [dict(r) for r in rows]
+        with self._lock:
+            w, args = self._where(start, end, project, model, provider)
+            rows = self._local.execute(
+                f"SELECT * FROM requests{w} ORDER BY ts DESC, id DESC LIMIT ?", args + [limit]
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def export_page(self, limit: int = 5000, offset: int = 0, start=None, end=None,
+                    project=None, model=None, provider=None) -> List[Dict[str, Any]]:
+        """导出专用分页查询：时间正序（oldest→newest），配合流式导出控制内存。"""
+        with self._lock:
+            w, args = self._where(start, end, project, model, provider)
+            rows = self._local.execute(
+                f"SELECT * FROM requests{w} ORDER BY ts ASC, id ASC LIMIT ? OFFSET ?",
+                args + [limit, offset]
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def cost_in_range(self, start: float, end: float) -> float:
-        row = self._local.execute(
-            "SELECT COALESCE(SUM(cost),0) AS c FROM requests WHERE ts >= ? AND ts <= ?",
-            (start, end)).fetchone()
-        return float(row["c"]) if row else 0.0
+        with self._lock:
+            row = self._local.execute(
+                "SELECT COALESCE(SUM(cost),0) AS c FROM requests WHERE ts >= ? AND ts <= ?",
+                (start, end)).fetchone()
+            return float(row["c"]) if row else 0.0
 
     def live_stats(self, since: float) -> Dict[str, float]:
         """最近 since 秒的实时聚合（修复：不再拉明细到内存过滤）。"""
-        row = self._local.execute(
-            "SELECT COUNT(*) AS requests, "
-            "       COALESCE(SUM(status >= 400),0) AS errors, "
-            "       COALESCE(SUM(total_tokens),0)  AS tokens, "
-            "       COALESCE(SUM(cost),0)          AS cost "
-            "FROM requests WHERE ts >= ?",
-            (since,)).fetchone()
-        return dict(row) if row else {"requests": 0, "errors": 0, "tokens": 0, "cost": 0}
+        with self._lock:
+            row = self._local.execute(
+                "SELECT COUNT(*) AS requests, "
+                "       COALESCE(SUM(status >= 400),0) AS errors, "
+                "       COALESCE(SUM(total_tokens),0)  AS tokens, "
+                "       COALESCE(SUM(cost),0)          AS cost "
+                "FROM requests WHERE ts >= ?",
+                (since,)).fetchone()
+            return dict(row) if row else {"requests": 0, "errors": 0, "tokens": 0, "cost": 0}
 
     def distinct(self, field: str) -> List[str]:
         if field not in {"model", "project", "provider", "endpoint"}:
             return []
-        rows = self._local.execute(
-            f"SELECT DISTINCT {field} FROM requests WHERE {field} IS NOT NULL ORDER BY {field}"
-        ).fetchall()
-        return [r[0] for r in rows if r[0]]
+        with self._lock:
+            rows = self._local.execute(
+                f"SELECT DISTINCT {field} FROM requests WHERE {field} IS NOT NULL ORDER BY {field}"
+            ).fetchall()
+            return [r[0] for r in rows if r[0]]
 
     def alert_recent(self, scope: str, since: float) -> bool:
-        row = self._local.execute(
-            "SELECT COUNT(*) AS c FROM alerts WHERE scope = ? AND ts >= ?", (scope, since)).fetchone()
-        return (row["c"] if row else 0) > 0
+        with self._lock:
+            row = self._local.execute(
+                "SELECT COUNT(*) AS c FROM alerts WHERE scope = ? AND ts >= ?", (scope, since)).fetchone()
+            return (row["c"] if row else 0) > 0
 
     def alerts_list(self, limit: int = 50) -> List[Dict[str, Any]]:
-        rows = self._local.execute(
-            "SELECT * FROM alerts ORDER BY ts DESC, id DESC LIMIT ?", (limit,)).fetchall()
-        return [dict(r) for r in rows]
+        with self._lock:
+            rows = self._local.execute(
+                "SELECT * FROM alerts ORDER BY ts DESC, id DESC LIMIT ?", (limit,)).fetchall()
+            return [dict(r) for r in rows]
 
     def alert_add(self, scope: str, spent: float, limit_usd: float, message: str):
         with self._write() as cur:
@@ -271,6 +294,21 @@ class Store:
     def clear(self):
         with self._write() as cur:
             cur.execute("DELETE FROM requests")
+            cur.execute("DELETE FROM alerts")
+
+    def prune(self, days: int) -> int:
+        """删除 N 天前的调用记录与对应告警（保留最近 N 天），返回删除条数。"""
+        cutoff = time.time() - days * 86400
+        with self._write() as cur:
+            cur.execute("DELETE FROM requests WHERE ts < ?", (cutoff,))
+            n = cur.rowcount
+            cur.execute("DELETE FROM alerts WHERE ts < ?", (cutoff,))
+            return n
+
+    def count(self) -> int:
+        with self._lock:
+            row = self._local.execute("SELECT COUNT(*) AS c FROM requests").fetchone()
+            return int(row["c"]) if row else 0
 
     def close(self):
         try:

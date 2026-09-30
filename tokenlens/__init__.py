@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-__version__ = "1.0.0"
+__version__ = "1.2.1"  # 与 pyproject.toml 保持一致
 
 from .config import Config
 from .meter import Meter

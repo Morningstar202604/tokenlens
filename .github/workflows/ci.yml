@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  syntax-check:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,3 +19,9 @@ jobs:
           python-version: "3.12"
       - name: 语法检查（compileall）
         run: python -m compileall -q .
+      - name: 安装依赖
+        run: pip install -q -r requirements.txt
+      - name: 单元测试
+        run: python scripts/unit_test.py
+      - name: 端到端冒烟测试
+        run: python scripts/smoke_test.py

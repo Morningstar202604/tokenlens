@@ -123,20 +123,36 @@ def cmd_export(args):
     cfg = Config.load(args.config)
     store, _ = _ctx(cfg)
     s, e = parse_range(args.range)
-    rows = store.recent(args.limit if args.limit else 100000, s, e, args.project, args.model)
-    if not rows:
+    limit = args.limit if args.limit else 100000
+    first_page = store.export_page(1, 0, s, e, args.project, args.model)
+    if not first_page:
         print("暂无数据")
         return
+    first = first_page[0]
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    n = 0
     with out.open("w", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = csv.DictWriter(f, fieldnames=list(first.keys()))
         w.writeheader()
-        for r in reversed(rows):  # recent 是时间倒序，导出改为正序
-            r = dict(r)
-            r["ts"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
-            w.writerow(r)
-    print(f"已导出 {len(rows)} 条 -> {out}")
+        offset = 0
+        while n < limit:
+            rows = store.export_page(5000, offset, s, e, args.project, args.model)
+            if not rows:
+                break
+            offset += len(rows)
+            for r in rows:
+                if n >= limit:
+                    break
+                r = dict(r)
+                r["ts"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
+                # CSV 公式注入防护：以 = + - @ 制表符/回车开头的字段前置单引号
+                for k, v in r.items():
+                    if isinstance(v, str) and v and v[0] in ("=", "+", "-", "@", "\t", "\r"):
+                        r[k] = "'" + v
+                w.writerow(r)
+                n += 1
+    print(f"已导出 {n} 条 -> {out}")
 
 
 def cmd_pricing(args):
@@ -205,6 +221,24 @@ def cmd_reset(args):
     print("已清空用量记录")
 
 
+def cmd_prune(args):
+    """按保留天数清理过期记录，防止 usage.db 无限增长。"""
+    cfg = Config.load(args.config)
+    store, _ = _ctx(cfg)
+    days = args.days if args.days is not None else cfg.retention_days
+    if not days:
+        print("未设置保留天数：可用 `tokenlens prune --days N`，"
+              "或 `tokenlens config set retention_days N` 持久化")
+        return
+    if days < 1:
+        print("保留天数必须 >= 1")
+        sys.exit(1)
+    before = store.count()
+    removed = store.prune(days)
+    after = store.count()
+    print(f"删除 {days} 天前的记录：清理 {removed} 条（{before} → {after}）")
+
+
 def cmd_config(args):
     cfg = Config.load(args.config)
     if args.init:
@@ -248,11 +282,12 @@ def cmd_config(args):
 
 
 def cmd_live(args):
-    """实时查看近 60 秒流量。"""
+    """实时查看近 N 秒流量。"""
     cfg = Config.load(args.config)
     store = Store(cfg.db_path)
-    d = store.live_stats(time.time() - 60)
-    print(f"近 60 秒: {d['requests']} req/min · {int(d['tokens']):,} tokens · 错误 {d['errors']} · 花费 ${d['cost']:.6f}")
+    window = max(args.window, 1)
+    d = store.live_stats(time.time() - window)
+    print(f"近 {window} 秒: {d['requests']} req · {int(d['tokens']):,} tokens · 错误 {d['errors']} · 花费 ${d['cost']:.6f}")
 
 
 def cmd_doctor(args):
@@ -302,6 +337,7 @@ def build_parser():
   tokenlens export --out usage.csv            导出 CSV
   tokenlens seed-demo                         灌入演示数据
   tokenlens live                              实时查看近 60 秒流量
+  tokenlens prune --days 90                   清理 90 天前的记录
   tokenlens config set budget_daily 5         修改日预算
   tokenlens config get dashboard_token        查看访问令牌
 """)
@@ -363,6 +399,10 @@ def build_parser():
     s.add_argument("--yes", action="store_true")
     s.set_defaults(func=cmd_reset)
 
+    s = sub.add_parser("prune", help="按保留天数清理过期记录")
+    s.add_argument("--days", type=int, default=None, help="保留最近 N 天（默认取 config 的 retention_days）")
+    s.set_defaults(func=cmd_prune)
+
     s = sub.add_parser("config", help="查看/修改配置（config get/set KEY [VALUE]）")
     s.add_argument("--init", action="store_true", help="生成默认配置文件")
     s.add_argument("action", nargs="?", choices=["get", "set"], metavar="ACTION", help="get 查看 / set 修改")
@@ -370,7 +410,8 @@ def build_parser():
     s.add_argument("value", nargs="?", metavar="VALUE", help="新值（set 时必填）")
     s.set_defaults(func=cmd_config)
 
-    s = sub.add_parser("live", help="实时查看近 60 秒流量")
+    s = sub.add_parser("live", help="实时查看近 N 秒流量（默认 60 秒）")
+    s.add_argument("--window", type=int, default=60, help="统计窗口秒数")
     s.set_defaults(func=cmd_live)
 
     s = sub.add_parser("doctor", help="环境自检")

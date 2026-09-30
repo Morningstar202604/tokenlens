@@ -14,15 +14,45 @@ from .pricing import CostCalculator, PricingTable
 from .store import Store
 
 
+_PROVIDER_HOSTS = {
+    "api.openai.com": "openai",
+    "api.anthropic.com": "anthropic",
+    "api.deepseek.com": "deepseek",
+    "api.moonshot.cn": "moonshot",
+    "dashscope.aliyuncs.com": "dashscope",
+    "open.bigmodel.cn": "bigmodel",
+    "ark.cn-beijing.volces.com": "volces",
+    "api.siliconflow.cn": "siliconflow",
+    "generativelanguage.googleapis.com": "googleapis",
+    "api.x.ai": "x.ai",
+    "api.groq.com": "groq",
+    "api.together.xyz": "together",
+    "openrouter.ai": "openrouter",
+    "127.0.0.1": "local",
+    "localhost": "local",
+}
+_PROVIDER_SUBSTR = (
+    ("openai", "openai"), ("anthropic", "anthropic"), ("deepseek", "deepseek"),
+    ("moonshot", "moonshot"), ("dashscope", "dashscope"), ("bigmodel", "bigmodel"),
+    ("volces", "volces"), ("volcengine", "volces"), ("siliconflow", "siliconflow"),
+    ("googleapis", "googleapis"), ("openrouter", "openrouter"), ("groq", "groq"),
+    ("together", "together"), ("ollama", "ollama"),
+)
+
+
 def provider_from_url(url: str) -> str:
+    """从上游 URL 识别厂商：先精确匹配已知主机名（避免子串误判），
+    再按域名关键字回退，本地地址归为 local。"""
     if not url:
         return "unknown"
-    host = url.lower()
-    for key in ("openai", "anthropic", "deepseek", "moonshot", "bigmodel", "dashscope",
-                "volces", "volcengine", "ark", "siliconflow", "googleapis", "x.ai",
-                "groq", "together", "ollama", "localhost", "127.0.0.1", "openrouter"):
+    low = url.lower()
+    host = low.split("//", 1)[-1].split("/", 1)[0].split(":")[0]
+    host = host.split("@")[-1]  # 去掉 userinfo
+    if host in _PROVIDER_HOSTS:
+        return _PROVIDER_HOSTS[host]
+    for key, name in _PROVIDER_SUBSTR:
         if key in host:
-            return key
+            return name
     return "custom"
 
 

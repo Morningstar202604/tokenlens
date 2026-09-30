@@ -34,7 +34,7 @@
 3. **本地验证**：跑通测试与构建（与 CI 同款命令），全绿才继续
 4. **合并**：以 PR 方式合入 `main`，CI 全绿后合并
 5. **打标签**：`git tag -a vX.Y.Z -m "vX.Y.Z"` 并推送（`git push origin vX.Y.Z`）
-6. **发布**：基于该 tag 创建 GitHub Release，Release Notes 写清本次变更要点
-7. **部署**：确认 GitHub Pages / 站点自动部署完成且可访问
+6. **发布**：基于该 tag 创建 Release（GitCode / GitHub 均可，保持两端同步），Release Notes 写清本次变更要点
+7. **部署**：确认站点自动部署完成且可访问（如已配置 Pages 等静态托管）
 
-变更记录以 GitHub Releases 与 git log 为准。
+变更记录以 Releases 与 git log 为准。

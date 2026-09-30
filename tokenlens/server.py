@@ -76,7 +76,27 @@ def run(cfg: Optional[Config] = None, reload: bool = False):
     cfg = cfg or Config.load()
     app = create_app(cfg)
     print(_banner(cfg))
+    _warn_unsafe_deploy(cfg)
     uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="warning")
+
+
+def _warn_unsafe_deploy(cfg: Config):
+    """启动前安全提示：对外监听未设 token / 上游配置指向内网。"""
+    loopback = cfg.host in ("127.0.0.1", "localhost", "::1", "[::1]")
+    if not loopback:
+        if not cfg.dashboard_token:
+            print("  ⚠ 警告: 正在对外监听（%s）但未设置 dashboard_token，"
+                  "任何能访问该端口的人都能读取统计并看到明文 webhook 地址，"
+                  "建议先配置访问令牌" % cfg.host)
+        if not cfg.allow_private_upstreams:
+            print("  ⚠ 提示: 上游地址校验已开启（防 SSRF）。"
+                  "如需把请求转发到内网模型服务，请设置 allow_private_upstreams = true")
+    from .proxy import _reject_unsafe_upstream
+    for name, url in list(cfg.upstreams.items()) + [("default", cfg.default_upstream)]:
+        reason = _reject_unsafe_upstream(url, cfg.allow_private_upstreams)
+        if reason:
+            print(f"  ⚠ 提示: 上游配置 {name}（{url}）{reason}；"
+                  f"若确需使用内网模型服务，请设置 allow_private_upstreams = true")
 
 
 def _banner(cfg: Config) -> str:

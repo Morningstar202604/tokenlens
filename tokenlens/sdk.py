@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import functools
+import sys
 import time
 from typing import Any, Callable, Dict, Optional
 
@@ -86,7 +87,32 @@ def _to_dict(obj: Any) -> Dict:
 
 def track(project: str = "default", model: Optional[str] = None,
           provider: str = "custom") -> Callable:
-    """装饰器：自动记录被包装函数的 LLM 调用用量。支持同步与异步函数。"""
+    """装饰器：自动记录被包装函数的 LLM 调用用量。支持同步与异步函数。
+
+    被包装函数抛异常时也会记录一条失败记录（status=500）再重新抛出。
+    """
+
+    def _record_failure(lens, started):
+        try:
+            lens.meter.record(
+                provider=provider, model=model, endpoint="sdk",
+                project=project, latency_ms=(time.time() - started) * 1000,
+                status=500, error=f"sdk call failed: {sys.exc_info()[1]}"[:500],
+                estimated=True,
+            )
+        except Exception as exc:
+            print(f"[tokenlens] track 失败记录失败: {exc}")
+
+    def _payload_from(args, kwargs):
+        """从调用参数提取请求载荷：优先关键字参数；位置参数调用（如
+        create(messages, ...)）时取第一个位置参数，避免漏记。"""
+        payload = {}
+        for k in ("messages", "input", "prompt", "content", "model"):
+            if kwargs.get(k) is not None:
+                payload[k] = kwargs[k]
+        if not payload and args:
+            payload["messages"] = args[0]
+        return payload or None
 
     def deco(fn: Callable):
         lens = get_default()
@@ -105,15 +131,23 @@ def track(project: str = "default", model: Optional[str] = None,
             @functools.wraps(fn)
             async def async_wrapper(*args, **kwargs):
                 started = time.time()
-                result = await fn(*args, **kwargs)
-                return finish(result, started, kwargs)
+                try:
+                    result = await fn(*args, **kwargs)
+                except Exception:
+                    _record_failure(lens, started)
+                    raise
+                return finish(result, started, _payload_from(args, kwargs))
             return async_wrapper
 
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
             started = time.time()
-            result = fn(*args, **kwargs)
-            return finish(result, started, kwargs)
+            try:
+                result = fn(*args, **kwargs)
+            except Exception:
+                _record_failure(lens, started)
+                raise
+            return finish(result, started, _payload_from(args, kwargs))
         return wrapper
 
     return deco
@@ -136,11 +170,24 @@ def patch_openai(project: str = "default"):
             continue
 
         def make(orig, async_):
+            def _record_failure(started):
+                try:
+                    lens.meter.record(
+                        provider="openai", model=kwargs.get("model"), endpoint="sdk",
+                        project=project, latency_ms=(time.time() - started) * 1000,
+                        status=500, error=f"openai call failed: {sys.exc_info()[1]}"[:500],
+                        estimated=True,
+                    )
+                except Exception as exc:
+                    print(f"[tokenlens] patch 失败记录失败: {exc}")
+
             def wrapper(self, *args, **kwargs):
                 started = time.time()
-                result = orig(self, *args, **kwargs)
-                if async_:
-                    return result
+                try:
+                    result = orig(self, *args, **kwargs)
+                except Exception:
+                    _record_failure(started)
+                    raise
                 try:
                     lens.record_response(
                         result, model=kwargs.get("model"), project=project,
@@ -155,7 +202,11 @@ def patch_openai(project: str = "default"):
 
             async def awrapper(self, *args, **kwargs):
                 started = time.time()
-                result = await orig(self, *args, **kwargs)
+                try:
+                    result = await orig(self, *args, **kwargs)
+                except Exception:
+                    _record_failure(started)
+                    raise
                 try:
                     lens.record_response(
                         result, model=kwargs.get("model"), project=project,

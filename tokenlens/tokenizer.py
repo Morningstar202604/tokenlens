@@ -17,8 +17,9 @@ try:  # tiktoken 是可选依赖，缺失时静默降级
 except Exception:  # pragma: no cover
     tiktoken = None  # type: ignore
 
+# 仅统计 CJK 统一表意文字及其扩展（中文）；不把日文假名/韩文谚文按中文系数估算
 _CJK = re.compile(
-    r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]"
+    r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]"
 )
 
 # 无法获取编码时的经验系数

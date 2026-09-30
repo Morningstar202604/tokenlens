@@ -110,10 +110,19 @@ def main():
         check("错误被透传 400", r.status_code == 400, str(r.status_code))
 
         print("[6] 上游不可达")
+        # 198.51.100.1 是公网保留地址（TEST-NET-2），不在私网段、不可达，
+        # 用于验证「合法地址但连接失败 → 502」；部分沙箱出口防火墙会直接拒绝
+        # 返回 403，两种都是预期的网络层失败（内网地址现在会被 SSRF 校验拒绝 400，见 [6b]）
+        r = c.post(f"{BASE}/chat/completions",
+                   headers={"X-TokenLens-Upstream": "http://198.51.100.1:9/v1"},
+                   json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "x"}]})
+        check("不可达上游返回 502/403", r.status_code in (502, 403), str(r.status_code))
+
+        print("[6b] 内网上游被 SSRF 校验拒绝")
         r = c.post(f"{BASE}/chat/completions",
                    headers={"X-TokenLens-Upstream": "http://127.0.0.1:9/v1"},
                    json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "x"}]})
-        check("不可达上游返回 502", r.status_code == 502, str(r.status_code))
+        check("内网上游返回 400", r.status_code == 400, str(r.status_code))
 
         time.sleep(0.6)
         print("\n[7] 校验统计接口")

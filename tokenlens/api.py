@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from starlette.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .meter import CostCalculator, Meter, day_bounds, month_bounds
@@ -24,9 +25,17 @@ def parse_range(rng: str) -> tuple:
         s, e = day_bounds(now)
         return s - 86400, s
     if rng.endswith("h"):
-        return now - int(rng[:-1]) * 3600, now
+        try:
+            hours = int(rng[:-1])
+        except ValueError:
+            raise HTTPException(400, f"invalid range: {rng}")
+        return now - hours * 3600, now
     if rng.endswith("d"):
-        return now - int(rng[:-1]) * 86400, now
+        try:
+            days = int(rng[:-1])
+        except ValueError:
+            raise HTTPException(400, f"invalid range: {rng}")
+        return now - days * 86400, now
     if rng == "month":
         return month_bounds(now)
     if rng == "all":
@@ -50,6 +59,8 @@ class ConfigPatch(BaseModel):
     default_upstream: Optional[str] = None
     upstreams: Optional[Dict[str, str]] = None
     pricing_overrides: Optional[Dict[str, Dict[str, float]]] = None
+    allow_private_upstreams: Optional[bool] = None
+    retention_days: Optional[int] = None
 
 
 def _fill_gaps(rows, bucket: str, start, end, rng: str):
@@ -88,6 +99,18 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
         if request.query_params.get("token") == tok:
             return None
         raise HTTPException(401, "需要访问令牌（config.json 的 dashboard_token）")
+
+    def require_write(request: Request):
+        """写操作保护：对外监听且未设置访问令牌时，禁止修改类操作。
+
+        本地默认（127.0.0.1）保持开箱即用；一旦监听非回环地址，
+        未配 token 的部署不允许任何人改配置/预算/清数据。
+        """
+        if not cfg.dashboard_token and cfg.host not in ("127.0.0.1", "localhost", "::1", "[::1]"):
+            raise HTTPException(
+                401, "服务对外监听但未设置 dashboard_token，已禁止修改类操作；"
+                     "请在 config.json 中配置访问令牌后重试")
+        return None
 
     router = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
 
@@ -136,7 +159,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
             "endpoints": store.distinct("endpoint"),
         }
 
-    @router.post("/budget")
+    @router.post("/budget", dependencies=[Depends(require_write)])
     def set_budget(body: BudgetIn):
         if body.scope not in ("daily", "monthly"):
             raise HTTPException(400, "scope must be daily or monthly")
@@ -152,6 +175,8 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     @router.get("/live")
     def live(window: int = 60):
         """最近 N 秒的速率，用于仪表盘顶部的实时感。"""
+        if window <= 0:
+            window = 1  # 客户端可控参数，非法值不抛 500
         now = time.time()
         st = store.live_stats(now - window)
         n = st["requests"]
@@ -182,13 +207,15 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
             "default_upstream": cfg.default_upstream,
             "upstreams": cfg.upstreams,
             "pricing_overrides": cfg.pricing_overrides,
+            "allow_private_upstreams": cfg.allow_private_upstreams,
+            "retention_days": cfg.retention_days,
         }
 
     @router.get("/config")
     def get_config():
         return _public_config(meter.cfg)
 
-    @router.put("/config")
+    @router.put("/config", dependencies=[Depends(require_write)])
     def put_config(body: ConfigPatch):
         patch = body.model_dump(exclude_none=True)
         cfg = meter.cfg
@@ -206,20 +233,43 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def export(rng: str = "30d", project: Optional[str] = None,
                model: Optional[str] = None, provider: Optional[str] = None):
         s, e = parse_range(rng)
-        rows = store.recent(limit=100000, start=s, end=e,
-                            project=project, model=model, provider=provider)
-        if not rows:
+        first_page = store.export_page(1, 0, s, e, project, model, provider)
+        if not first_page:
             raise HTTPException(404, "所选范围暂无数据可导出")
-        buf = io.StringIO()
-        fieldnames = list(rows[0].keys())
-        w = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
-        w.writeheader()
-        for r in reversed(rows):  # recent 是时间倒序，导出改为正序
+        first = first_page[0]
+
+        def _sanitize(r: Dict[str, Any]) -> Dict[str, Any]:
             r = dict(r)
             r["ts"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["ts"]))
-            w.writerow(r)
-        return Response(
-            content=buf.getvalue(), media_type="text/csv; charset=utf-8",
+            # CSV 公式注入防护：以 = + - @ 制表符/回车开头的字段前置单引号，
+            # 避免 Excel/WPS 把用户可控字段当公式执行
+            for k, v in r.items():
+                if isinstance(v, str) and v and v[0] in ("=", "+", "-", "@", "\t", "\r"):
+                    r[k] = "'" + v
+            return r
+
+        def gen():
+            fieldnames = list(first.keys())
+            buf = io.StringIO()
+            w = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+            w.writeheader()
+            yield buf.getvalue()
+            buf.seek(0)
+            buf.truncate()
+            offset = 0
+            while True:
+                rows = store.export_page(5000, offset, s, e, project, model, provider)
+                if not rows:
+                    break
+                offset += len(rows)
+                for r in rows:
+                    w.writerow(_sanitize(r))
+                yield buf.getvalue()
+                buf.seek(0)
+                buf.truncate()
+
+        return StreamingResponse(
+            gen(), media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": 'attachment; filename="tokenlens-usage.csv"'})
 
     # ---------- 告警历史 ----------
@@ -228,12 +278,12 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
         return store.alerts_list(min(limit, 200))
 
     # ---------- 数据管理 ----------
-    @router.post("/reset")
+    @router.post("/reset", dependencies=[Depends(require_write)])
     def reset():
         store.clear()
         return {"ok": True}
 
-    @router.post("/seed")
+    @router.post("/seed", dependencies=[Depends(require_write)])
     def seed_demo(n: int = Query(300, ge=1, le=5000)):
         from .demo import seed as seed_db
         count = seed_db(store, meter, n=n, days=7)

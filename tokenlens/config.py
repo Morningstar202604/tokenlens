@@ -76,6 +76,12 @@ class Config:
     # 仪表盘是否需要口令（留空则不鉴权）
     dashboard_token: Optional[str] = None
 
+    # 是否允许通过请求头/查询参数把上游指向内网地址（默认禁止，防 SSRF）
+    allow_private_upstreams: bool = False
+
+    # 数据保留天数（0 = 不清理）。prune 命令按此清理过期记录
+    retention_days: int = 0
+
     @classmethod
     def load(cls, path: str | Path | None = None) -> "Config":
         path = Path(path) if path else DEFAULT_CONFIG_PATH
