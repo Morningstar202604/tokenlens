@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="-apple-system,'PingFang SC','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#2DD4BF"/>
+    </marker>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2DD4BF" stop-opacity=".10"/>
+      <stop offset="1" stop-color="#2DD4BF" stop-opacity=".02"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="700" fill="#0B0F17"/>
+  <text x="600" y="46" text-anchor="middle" fill="#E6EBF5" font-size="21" font-weight="700">TokenLens 数据流 · 一次 AI 调用的记账过程</text>
+  <text x="600" y="68" text-anchor="middle" fill="#5F6B81" font-size="12">How a single AI call gets metered — all data stays on this machine</text>
+
+  <!-- 左：客户端 -->
+  <rect x="40" y="110" width="250" height="330" rx="14" fill="#121A28" stroke="#1F2A3A"/>
+  <text x="165" y="146" text-anchor="middle" fill="#E6EBF5" font-size="15" font-weight="700">你的应用</text>
+  <text x="165" y="164" text-anchor="middle" fill="#5F6B81" font-size="11">Your apps — 只改一行 base_url</text>
+  <g font-size="13" fill="#94A3B8">
+    <rect x="60" y="184" width="210" height="44" rx="8" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="70" y="202" fill="#E6EBF5">Claude Code / Cline</text>
+    <text x="70" y="219" font-size="10.5" fill="#5F6B81">ANTHROPIC_BASE_URL</text>
+    <rect x="60" y="240" width="210" height="44" rx="8" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="70" y="258" fill="#E6EBF5">OpenAI SDK 应用</text>
+    <text x="70" y="275" font-size="10.5" fill="#5F6B81">OPENAI_BASE_URL / SDK 埋点</text>
+    <rect x="60" y="296" width="210" height="44" rx="8" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="70" y="314" fill="#E6EBF5">自研服务 / 脚本</text>
+    <text x="70" y="331" font-size="10.5" fill="#5F6B81">X-TokenLens-Project 会话归因</text>
+    <rect x="60" y="352" width="210" height="44" rx="8" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="70" y="370" fill="#E6EBF5">任意 OpenAI 兼容客户端</text>
+    <text x="70" y="387" font-size="10.5" fill="#5F6B81">Chatbox / Cherry Studio …</text>
+  </g>
+
+  <!-- 中：TokenLens -->
+  <rect x="380" y="96" width="450" height="480" rx="16" fill="url(#glow)" stroke="#2DD4BF" stroke-opacity=".45" stroke-width="1.5"/>
+  <text x="605" y="130" text-anchor="middle" fill="#2DD4BF" font-size="16" font-weight="700">TokenLens 　127.0.0.1:8787</text>
+  <text x="605" y="148" text-anchor="middle" fill="#5F6B81" font-size="11">单进程 FastAPI · 纯 Python · 无外部服务</text>
+
+  <g font-size="12.5">
+    <rect x="404" y="168" width="402" height="46" rx="9" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="418" y="187" fill="#E6EBF5" font-weight="600">透明代理 /v1/*</text>
+    <text x="418" y="204" font-size="10.5" fill="#94A3B8">SSE 逐 chunk 转发 · 自动注入 include_usage · 重定向逐跳校验</text>
+
+    <rect x="404" y="224" width="196" height="46" rx="9" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="418" y="243" fill="#E6EBF5" font-weight="600">预算闸门</text>
+    <text x="418" y="260" font-size="10.5" fill="#94A3B8">超限 402 硬拦截</text>
+    <rect x="610" y="224" width="196" height="46" rx="9" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="624" y="243" fill="#E6EBF5" font-weight="600">告警推送</text>
+    <text x="624" y="260" font-size="10.5" fill="#94A3B8">钉钉 / 企微 / 飞书 Webhook</text>
+
+    <rect x="404" y="280" width="402" height="60" rx="9" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="418" y="300" fill="#E6EBF5" font-weight="600">计量引擎</text>
+    <text x="418" y="317" font-size="10.5" fill="#94A3B8">上游 usage 精确值 → tiktoken → 启发式估算（三级降级）</text>
+    <text x="418" y="332" font-size="10.5" fill="#94A3B8">成本 = tokens × 价格表（LiteLLM 同步 2000+ 模型，支持手动覆盖）</text>
+
+    <rect x="404" y="350" width="402" height="52" rx="9" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="418" y="370" fill="#E6EBF5" font-weight="600">本地账本 SQLite（WAL）</text>
+    <text x="418" y="387" font-size="10.5" fill="#94A3B8">requests / alerts / config.json · 单文件，备份即迁移 · 不出本机</text>
+
+    <rect x="404" y="412" width="402" height="52" rx="9" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="418" y="432" fill="#E6EBF5" font-weight="600">仪表盘 :8787</text>
+    <text x="418" y="449" font-size="10.5" fill="#94A3B8">花销账本 + ECharts 趋势/构成 + 预算直改 + 密钥→应用别名</text>
+
+    <rect x="404" y="474" width="402" height="44" rx="9" fill="#0F1622" stroke="#1F2A3A"/>
+    <text x="418" y="492" fill="#E6EBF5" font-weight="600">运维面</text>
+    <text x="418" y="509" font-size="10.5" fill="#94A3B8">onboard 扫描接入 / CSV 多机合并导入 / JSONL 导出 / prune 清理</text>
+  </g>
+
+  <!-- 右：上游 -->
+  <rect x="920" y="110" width="240" height="330" rx="14" fill="#121A28" stroke="#1F2A3A"/>
+  <text x="1040" y="146" text-anchor="middle" fill="#E6EBF5" font-size="15" font-weight="700">上游 LLM（37+）</text>
+  <text x="1040" y="164" text-anchor="middle" fill="#5F6B81" font-size="11">Upstreams — 路径别名直连</text>
+  <g font-size="12.5" fill="#94A3B8">
+    <text x="944" y="196" fill="#E6EBF5">海外　</text><text x="984" y="196">OpenAI · Anthropic · Gemini</text>
+    <text x="944" y="218">　　　</text><text x="984" y="218">Grok · Groq · Mistral · OpenRouter</text>
+    <text x="944" y="248" fill="#E6EBF5">国内　</text><text x="984" y="248">DeepSeek · Qwen · Kimi · GLM</text>
+    <text x="944" y="270">　　　</text><text x="984" y="270">Doubao · 千帆 · 混元 · MiniMax</text>
+    <text x="944" y="292">　　　</text><text x="984" y="292">Spark · SenseNova · 360 · ModelScope</text>
+    <text x="944" y="322" fill="#E6EBF5">本地　</text><text x="984" y="322">Ollama · vLLM · LM Studio</text>
+    <text x="944" y="344">　　　</text><text x="984" y="344">llama.cpp · Jan · Xinference</text>
+  </g>
+  <rect x="944" y="374" width="192" height="42" rx="8" fill="rgba(45,212,191,.08)" stroke="rgba(45,212,191,.3)"/>
+  <text x="1040" y="392" text-anchor="middle" fill="#2DD4BF" font-size="11">/v1/deepseek/… /v1/anthropic/…</text>
+  <text x="1040" y="407" text-anchor="middle" fill="#5F6B81" font-size="10">别名路由，同一端口多厂商</text>
+
+  <!-- 箭头 -->
+  <line x1="292" y1="290" x2="372" y2="290" stroke="#2DD4BF" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="332" y="276" text-anchor="middle" fill="#5F6B81" font-size="10.5">Authorization</text>
+  <text x="332" y="310" text-anchor="middle" fill="#5F6B81" font-size="10.5">原样转发</text>
+  <line x1="832" y1="290" x2="912" y2="290" stroke="#2DD4BF" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="872" y="276" text-anchor="middle" fill="#5F6B81" font-size="10.5">同请求转发</text>
+  <text x="872" y="310" text-anchor="middle" fill="#5F6B81" font-size="10.5">usage 回传记账</text>
+
+  <!-- 底部安全条 -->
+  <rect x="40" y="610" width="1120" height="58" rx="12" fill="#0F1622" stroke="#1F2A3A"/>
+  <g font-size="12" fill="#94A3B8" text-anchor="middle">
+    <text x="230" y="636" fill="#2DD4BF">API Key 只存 12 位指纹</text>
+    <text x="230" y="654" font-size="10.5" fill="#5F6B81">SHA-256 前缀，可映射应用名</text>
+    <text x="600" y="636" fill="#2DD4BF">prompt / 响应内容不落库</text>
+    <text x="600" y="654" font-size="10.5" fill="#5F6B81">只记模型、token 数、成本、延迟等元数据</text>
+    <text x="970" y="636" fill="#2DD4BF">单文件账本，随走随迁</text>
+    <text x="970" y="654" font-size="10.5" fill="#5F6B81">usage.db + config.json，多机 CSV 合并</text>
+  </g>
+</svg>

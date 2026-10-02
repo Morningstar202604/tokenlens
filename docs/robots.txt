@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://x33834.github.io/tokenlens/sitemap.xml

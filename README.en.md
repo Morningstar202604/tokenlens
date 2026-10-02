@@ -1,205 +1,128 @@
-# TokenLens · AI Token Usage Monitor
+<div align="center">
 
-A zero-intrusion local transparent proxy: change one line of `base_url`, and every AI call's token count, cost and latency lands in local SQLite, with a "cost ledger" dashboard and budget alerts. Data never leaves your machine. No cloud services required.
+<img src="docs/media/brand-wide.png" alt="TokenLens" width="720">
 
-**[中文版 README](README.md)**
+# TokenLens
 
-## Quick Start
+**Every AI call, metered — tokens and spend in a ledger that stays on your machine.**
+
+Zero-intrusion transparent proxy · Local-first · 37+ upstreams · 5-minute setup
+
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](scripts/smoke_test.py)
+[![Version](https://img.shields.io/badge/version-1.2.1-orange)](CHANGELOG.md)
+
+[Website (EN)](https://x33834.github.io/tokenlens/en/) ｜ [中文](README.md) ｜ [Changelog](CHANGELOG.md)
+
+</div>
+
+---
+
+<table>
+<tr><td width="50%">
+
+**The problem you know too well**
+
+- The bill arrives before you notice the burn
+- Multiple projects and apps share one key; nobody can say where the money went
+- Usage caps mean babysitting a dashboard
+- Cloud monitoring wants your prompts and your keys
+
+</td><td width="50%">
+
+**How TokenLens handles it**
+
+- Every call is metered in real time: tokens, cost, latency, success/failure
+- Split by project / app / model / provider — see exactly who is spending
+- Threshold alerts, and over-budget calls get a 402 before reaching the provider
+- Local-first: metadata only, prompts/responses never stored, keys reduced to fingerprints
+
+</td></tr>
+</table>
+
+## Up and running in 60 seconds
 
 ```bash
-pip install .                # installs the tokenlens command (or: pip install -r requirements.txt)
-python -m tokenlens start    # proxy + dashboard, default 127.0.0.1:8787
-```
+# 1. Install and start (default port 8787)
+pip install . && python -m tokenlens start
 
-Then point your client's base_url at it:
-
-```bash
+# 2. Point any OpenAI-compatible client at it
 export OPENAI_BASE_URL=http://127.0.0.1:8787/v1
-export OPENAI_API_KEY=sk-xxx    # key is forwarded to upstream as-is, never stored
+
+# 3. Open the spend ledger
+http://127.0.0.1:8787
 ```
 
-Open **http://127.0.0.1:8787** for the dashboard. No real key? Still try it: run `python examples/mock_upstream.py` for a mock upstream, or `python -m tokenlens seed-demo` to load demo data.
+That's the whole integration. No business code changes, no account, no cloud. No real API key needed to try it: `python -m tokenlens seed-demo` loads demo data, `python examples/mock_upstream.py` runs a mock provider.
 
-## Demo
+### Other ways to run it
 
-30-second real walkthrough (recorded in the browser: skeleton loading, KPI count-up animation, chart dimension switching, row expand, settings drawer, alert timeline):
+| Method | Good for | Command |
+|---|---|---|
+| pip / source | daily development | the three lines above |
+| Docker | servers / NAS | `docker compose up -d` ([Dockerfile](Dockerfile)) |
+| Windows, no install | desktop users | single-file PyInstaller build `dist/TokenLens.exe` — double-click, proxy + dashboard on :8788 |
+| Multi-machine | work split across boxes | export CSV on each → `tokenlens import-csv` merges idempotently |
+
+## What it looks like
 
 <video src="docs/media/tokenlens-promo.mp4" controls width="720" poster="docs/media/desktop.png"></video>
 
-Video file: `docs/media/tokenlens-promo.mp4` (22s, ~1.5 MB)
+*22s real capture: skeleton loading → animated KPI counters → chart dimensions → row expansion → settings drawer → alert timeline. There's also a [9-second quick cut](docs/media/tokenlens-demo-live.webm).*
 
-Desktop dashboard:
+| Desktop | Mobile |
+|---|---|
+| <img src="docs/media/desktop.png" alt="Desktop dashboard" width="100%"> | <img src="docs/media/mobile.png" alt="Mobile layout" width="72%"> |
 
-![Desktop dashboard](docs/media/desktop.png)
+| Settings drawer | Alert timeline |
+|---|---|
+| <img src="docs/media/drawer.png" alt="Settings drawer" width="100%"> | <img src="docs/media/alerts.png" alt="Alert timeline" width="100%"> |
 
-Settings drawer (daily/monthly budget, hard enforcement, FX rate, webhook, price overrides):
+## Architecture
 
-![Settings drawer](docs/media/drawer.png)
+<img src="docs/media/architecture.svg" alt="Architecture: apps → TokenLens (proxy / metering / ledger / dashboard) → upstream LLMs" width="100%">
 
-Budget alert timeline:
+Design notes worth reading:
 
-![Budget alert timeline](docs/media/alerts.png)
+- **Three-tier metering fallback**: prefer the upstream's own usage (exact), then tiktoken, then heuristics — the ledger always has numbers, even offline or on unknown models
+- **Streaming is fully metered**: SSE parsed chunk-by-chunk, `include_usage` auto-injected so the provider reports real usage, survives chunk-split events
+- **Budget enforcement happens before forwarding**: rejected calls cost you nothing upstream
+- **Keys are stored as fingerprints**: first 12 hex chars of SHA-256, mappable to friendly app names ("Claude Code", not a hash)
 
-Mobile layout:
+## Feature map
 
-![Mobile layout](docs/media/mobile.png)
+| | What it does |
+|---|---|
+| Proxy | OpenAI-compatible; SSE streaming; 37+ path-alias upstreams (`/v1/deepseek/…`); redirect hops re-validated |
+| Metering | tokens (incl. cached / reasoning), cost (LiteLLM price table, 2,000+ models + manual overrides), latency / TTFT / P95 |
+| Attribution | project (header) · session · app (key-fingerprint alias) · provider / model / endpoint |
+| Dashboard | today / monthly spend, budget bars, trends (cost / tokens / requests / latency), cost breakdown, sortable detail, offline demo data |
+| Budget | daily / monthly, 80% alert, 402 hard block; DingTalk / WeCom / Feishu webhooks |
+| Data | CSV export (formula-injection safe) / JSONL export / idempotent CSV merge; retention auto-prune |
+| Onboarding | `tokenlens onboard` scans local AI apps and wires them safely (Claude Code, reversible); SDK instrumentation (decorator / openai patch) |
+| Security | local-first; dashboard_token auth; CSRF protection; DNS-rebinding protection; request size caps; full analysis in [docs/ANALYSIS.md](docs/ANALYSIS.md) |
 
-## Brand Assets
-
-Brand promo video (30s: branded intro -> live demo -> branded outro):
-
-<video src="docs/media/tokenlens-brand.mp4" controls width="720" poster="docs/media/brand-wide.png"></video>
-
-Brand key visual - wide (1600x900, for website / social cover / articles):
-
-![Brand wide](docs/media/brand-wide.png)
-
-Brand key visual - vertical (1080x1440, for Xiaohongshu / Moments / mobile poster):
-
-![Brand vertical](docs/media/brand-vertical.png)
-
-## How It Works
-
-```mermaid
-graph LR
-    Client["Your app<br/>one-line base_url change"] --> Proxy["TokenLens proxy<br/>127.0.0.1:8787<br/>metering + cost"]
-    Proxy --> Upstream["Upstream LLM<br/>OpenAI / DeepSeek / Qwen / Claude / ..."]
-    Proxy -->|"SQLite"| DB[(local usage DB)]
-    DB --> Dash["Web dashboard<br/>budget alerts"]
-```
-
-No business-code changes, your API key never touches the proxy's storage (Authorization header is forwarded as-is), and all data stays on your machine.
-
-## Dashboard (Cost Ledger)
-
-- **Money first**: big daily / monthly spend numbers with daily / monthly budget bars — amber past 80%, red when over; edit budgets right on the panel
-- **Usage trend**: switch cost / tokens / requests / latency, aggregated hourly or daily
-- **Cost breakdown**: see who's spending, by model / project / provider
-- **Call details**: sortable column headers, status / provider filters, pagination, click a row to expand error details, CSV export
-- **Settings drawer**: budgets, FX rate, alert webhook, price overrides, clear data — all on one screen
-- First-run shows an onboarding banner at the top (one-click copy of base_url); **open `tokenlens/web/index.html` offline to browse the embedded demo data**
-
-## Multi-Provider Routing
-
-Route by path alias on the same port (aliases configured in `~/.tokenlens/config.json` under `upstreams`; openai / deepseek / moonshot / zhipu / dashscope / anthropic / siliconflow are built in):
+## Quality
 
 ```
-http://127.0.0.1:8787/v1/chat/completions           → default upstream
-http://127.0.0.1:8787/v1/deepseek/chat/completions  → DeepSeek
-http://127.0.0.1:8787/v1/dashscope/chat/completions → Qwen (OpenAI-compatible)
-http://127.0.0.1:8787/v1/anthropic/v1/messages      → Claude native API
+Unit tests          59/59   (metering / storage / auth / pricing / SDK)
+Onboard tests       26/26   (wire / unwire / aliases)
+End-to-end smoke    52/52   (real processes: proxy → mock upstream → assert ledger)
+Type check          mypy 0 errors (CI gate)
+Adversarial suite   31 checks (SSRF / injection / CSRF / concurrency / metering accuracy)
 ```
 
-Header `X-TokenLens-Upstream: <url>` temporarily overrides the upstream; `X-TokenLens-Project: <name>` tags requests with a business label (used for per-project stats).
+## Known limits (stated honestly)
 
-## Metering & Cost
+- Budget enforcement is best-effort under extreme concurrency (check-then-act race); fine for personal scale
+- The price table is a snapshot (synced monthly from LiteLLM); provider price changes can lag — override in settings
+- Postgres backend is on the roadmap; SQLite only for now
 
-- **SSE streaming**: chunks are forwarded as they arrive while usage is parsed line-by-line; `stream_options.include_usage` is injected automatically; time-to-first-token (TTFT) is recorded
-- **Accuracy first**: uses exact usage when the upstream returns it (including cache hits and reasoning tokens); falls back to tiktoken, then to a CN/EN weighted estimate (marked `估`/est. in details)
-- **Cost model**: price table synced from LiteLLM (2000+ models, refresh with `scripts/sync_pricing.py`); Doubao / Kimi and other domestic models have built-in fallbacks; cache hits are discounted per provider (OpenAI 0.25x); unknown models cost 0 so they don't pollute reports
-- Override a price: `python -m tokenlens pricing --set-model my-model 1.0 4.0` (USD / 1M tokens)
+## Docs
 
-## Budget Alerts
+[Changelog](CHANGELOG.md) · [Architecture & security analysis](docs/ANALYSIS.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [Website](https://x33834.github.io/tokenlens/en/)
 
-```bash
-python -m tokenlens budget --daily 20 --monthly 400
-```
+## License
 
-Alerts fire at 80% of the threshold (daily budgets alert at most once per hour, monthly at most once per 24h, to avoid spamming): the dashboard budget bar changes color, console output, optional webhook push (DingTalk / WeCom / Feishu / generic JSON). History is visible in the dashboard's "Budget alerts" section and via `python -m tokenlens alerts`.
-
-**Hard enforcement** (on by default): once the budget is exceeded, new requests are rejected with 402 instead of being forwarded upstream (response carries `X-TokenLens-Scope: daily|monthly`, rows are marked "rejected"); disable it in the settings drawer or with `config set enforce_budget false`, and `enforce_budget_ratio` lets you start rejecting earlier, e.g. 0.8 = block at 80%.
-
-## CLI
-
-```bash
-python -m tokenlens start       [--port 8787] [--upstream URL] [--daily 20]
-python -m tokenlens stats       [--range 7d] [--project X] [--model Y] [--json]
-python -m tokenlens top         [--field model|project|provider|endpoint|day]
-python -m tokenlens export      [--out usage.csv] [--range 30d]
-python -m tokenlens pricing     [--model gpt-4o] [--set-model NAME IN OUT]
-python -m tokenlens budget      [--daily 20] [--monthly 400]
-python -m tokenlens alerts      [--limit 20]
-python -m tokenlens seed-demo   [--n 600] [--days 7]
-python -m tokenlens reset       # wipe all data
-python -m tokenlens live        # watch the last 60s of traffic in real time
-python -m tokenlens config get KEY          # read a single config key
-python -m tokenlens config set KEY VALUE    # set a config key (auto type conversion)
-python -m tokenlens doctor      # environment self-check
-```
-
-## Configuration (`~/.tokenlens/config.json`)
-
-| Key | Default | Description |
-|---|---|---|
-| `port` / `host` | 8787 / 127.0.0.1 | Listen address |
-| `upstreams` | 7 built-in | Path alias → upstream base url |
-| `default_upstream` | OpenAI | Forward target when no alias matches |
-| `budget_daily` / `budget_monthly` | 10 / 200 | Budgets (USD); 0 = unlimited |
-| `cached_discounts` | `{"openai": 0.25}` | Cache-hit discount per provider |
-| `pricing_overrides` | `{}` | Custom prices `{model:{in,out}}` USD/1M |
-| `usd_cny_rate` | 7.2 | CNY conversion on the dashboard |
-| `webhook_url` / `webhook_type` | empty / generic | Alert webhook URL and channel (dingtalk / wecom / feishu) |
-| `inject_stream_usage` | true | Ask upstream to return usage on streaming |
-| `dashboard_token` | empty | Dashboard access token (empty = no auth; once set, APIs need `Authorization: Bearer <token>`) |
-| `enforce_budget` | true | Hard budget enforcement (402 rejection when over) |
-| `enforce_budget_ratio` | 1.0 | Rejection threshold (ratio of budget; 0.8 = block at 80%) |
-
-Quick env vars: `TOKENLENS_PORT`, `TOKENLENS_UPSTREAM`, `TOKENLENS_DAILY_BUDGET`.
-
-## Tests
-
-```bash
-python scripts/smoke_test.py   # end-to-end smoke (46: proxy/streaming/concurrency/budget/enforcement/trace headers/session filter/JSONL/SDK/CLI)
-python scripts/unit_test.py    # unit tests (37: pricing/cost/store/enforcement/auth/webhook/SDK tracking)
-python -m mypy tokenlens/      # type-check gate (enforced in CI)
-```
-
-## Docker deployment
-
-```bash
-docker build -t tokenlens:1.2.1 .
-docker run -d --name tokenlens -p 8787:8787 \
-  -v $HOME/.tokenlens:/root/.tokenlens tokenlens:1.2.1
-# or docker compose up -d (data persisted to ./tokenlens-data)
-```
-
-The image starts with `--host 0.0.0.0` and ships a health check; config and SQLite data are mounted at `/root/.tokenlens`.
-⚠ Mutating actions (budget / reset) are protected when listening on non-loopback: set `dashboard_token` first.
-
-## CLI additions
-
-- `tokenlens export --format jsonl` — JSONL export (one JSON object per line, immune to CSV formula injection).
-- `tokenlens import-csv usage.csv` — multi-machine merge import; rows are deduped by `request_id`
-  (rows without an id fall back to a ts+model+token fingerprint).
-- Session attribution: send `X-TokenLens-Session: <session-id>` (or SDK `track(..., session_id=...)`)
-  to filter the dashboard, stats and exports by conversation/session.
-
-## Layout
-
-```
-tokenlens/
-├── tokenlens/                # package
-│   ├── proxy.py              # transparent proxy (SSE line-buffer parsing + shared connection pool)
-│   ├── meter.py              # metering core + budget alerts + webhook cards
-│   ├── tokenizer.py          # token counting (usage > tiktoken > heuristic)
-│   ├── pricing.py            # price table (LiteLLM sync + built-in fallbacks) and cost math
-│   ├── store.py              # SQLite storage & aggregation (read conn + dedicated write conn)
-│   ├── api.py                # dashboard REST API (stats / settings / export / alerts)
-│   ├── server.py             # app assembly (shared httpx connection pool)
-│   ├── sdk.py                # decorator / monkeypatch instrumentation
-│   ├── demo.py               # demo data generation
-│   ├── pricing_data.json     # LiteLLM price snapshot (refresh via sync_pricing.py)
-│   └── web/                  # single-file dashboard (offline demo) + self-hosted ECharts
-├── examples/mock_upstream.py # mock upstream
-├── scripts/smoke_test.py     # end-to-end tests
-├── scripts/unit_test.py      # unit tests
-└── scripts/sync_pricing.py   # sync model price table
-```
-
-## Privacy & Boundaries
-
-- Only metadata is recorded (model, tokens, cost, latency, status, byte counts) — never prompt / response content
-- Authorization headers are forwarded but never stored; only a SHA-256 first-12-char fingerprint of your API key is kept
-- Single-machine, single-process SQLite — built for personal and small-team local gateways; for cross-machine rollups, `export` CSV periodically
-
-Repository: <https://gitcode.com/badhope/tokenlens>
+[MIT](LICENSE) — use it freely. If you come back and open an issue about what you built with it, even better.

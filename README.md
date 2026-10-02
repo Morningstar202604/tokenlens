@@ -1,217 +1,128 @@
-# TokenLens · AI Token 用量监控
+<div align="center">
 
-**English**: [README.en.md](README.en.md) · 中文版
+<img src="docs/media/brand-wide.png" alt="TokenLens" width="720">
 
-零侵入的本地透明代理：改一行 `base_url`，把每次 AI 调用的 token 数、成本、延迟记进本地 SQLite，配一个「花销账本」仪表盘和预算预警。数据不出本机，不用任何云服务。
+# TokenLens
 
-## 快速开始
+**把每次 AI 调用的 token 与花销，记成一本本地账本。**
+
+零侵入透明代理 · 数据不出本机 · 37+ 上游 · 5 分钟接入
+
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](scripts/smoke_test.py)
+[![Version](https://img.shields.io/badge/version-1.2.1-orange)](CHANGELOG.md)
+
+[官网（中文）](https://x33834.github.io/tokenlens/) ｜ [English](README.en.md) ｜ [更新日志](CHANGELOG.md)
+
+</div>
+
+---
+
+<table>
+<tr><td width="50%">
+
+**你遇到的问题**
+
+- 月底看账单才发现这个月烧了几百刀
+- 多个项目 / 多个应用混在一起，说不清钱花在哪
+- 想限制用量，只能靠手动盯着
+- 用了云端监控，prompt 和密钥都要交给第三方
+
+</td><td width="50%">
+
+**TokenLens 的做法**
+
+- 每一笔调用实时记账：token、成本、延迟、成功与否
+- 按项目 / 应用 / 模型 / 厂商拆分，透视到「谁在花钱」
+- 预算阈值告警，超限直接 402 拦截，不转发上游
+- 全程本机：只记元数据，prompt / 响应不落库，密钥只存指纹
+
+</td></tr>
+</table>
+
+## 60 秒上手
 
 ```bash
-pip install .                # 装上 tokenlens 命令（或 pip install -r requirements.txt）
-python -m tokenlens start    # 代理 + 仪表盘，默认 127.0.0.1:8787
-```
+# 1. 安装并启动（默认端口 8787）
+pip install . && python -m tokenlens start
 
-然后把客户端的 base_url 指过来：
-
-```bash
+# 2. 把客户端的 base_url 指过来（任何 OpenAI 兼容应用都行）
 export OPENAI_BASE_URL=http://127.0.0.1:8787/v1
-export OPENAI_API_KEY=sk-xxx    # key 原样透传上游，不落库
+
+# 3. 打开花销账本
+http://127.0.0.1:8787
 ```
 
-打开 **http://127.0.0.1:8787** 就是仪表盘。没有真实 Key 也能体验：
-`python examples/mock_upstream.py` 起模拟上游，或 `python -m tokenlens seed-demo` 灌演示数据。
+到此结束。不需要改任何业务代码，不需要注册任何服务。没有真实 Key 也能体验：`python -m tokenlens seed-demo` 灌演示数据，或 `python examples/mock_upstream.py` 起模拟上游。
 
-## 演示
+### 其他部署方式
 
-30 秒真实操作演示（本地浏览器录制，含骨架屏加载、KPI 数字滚动、图表维度切换、明细展开、设置抽屉与告警时间轴）：
+| 方式 | 适合 | 命令 |
+|---|---|---|
+| pip / 源码 | 日常开发 | 上面的三行 |
+| Docker | 服务器 / NAS 常驻 | `docker compose up -d`（[Dockerfile](Dockerfile)） |
+| Windows 免安装 | 双击就用的桌面用户 | PyInstaller 单文件 `dist/TokenLens.exe`，双击即起（代理 + 仪表盘 :8788） |
+| 多机合并 | 几台机器分开跑 | 各自导出 CSV → `tokenlens import-csv` 幂等合并 |
+
+## 它长什么样
 
 <video src="docs/media/tokenlens-promo.mp4" controls width="720" poster="docs/media/desktop.png"></video>
 
-视频文件：`docs/media/tokenlens-promo.mp4`（22s，约 1.5MB）
+*22 秒真实操作：骨架屏 → KPI 数字滚动 → 图表维度切换 → 明细展开 → 设置抽屉 → 告警时间轴。另有 [9 秒快速版](docs/media/tokenlens-demo-live.webm)。*
 
-桌面端完整仪表盘：
+| 桌面端 | 移动端 |
+|---|---|
+| <img src="docs/media/desktop.png" alt="桌面端仪表盘" width="100%"> | <img src="docs/media/mobile.png" alt="移动端" width="72%"> |
 
-![桌面端仪表盘](docs/media/desktop.png)
+| 设置抽屉 | 告警时间轴 |
+|---|---|
+| <img src="docs/media/drawer.png" alt="设置抽屉" width="100%"> | <img src="docs/media/alerts.png" alt="告警时间轴" width="100%"> |
 
-设置抽屉（日/月预算、硬拦截、汇率、Webhook、价格覆盖）：
+## 架构
 
-![设置抽屉](docs/media/drawer.png)
+<img src="docs/media/architecture.svg" alt="架构：应用 → TokenLens（代理/计量/账本/仪表盘）→ 上游 LLM" width="100%">
 
-预算告警时间轴：
+几个关键设计：
 
-![预算告警时间轴](docs/media/alerts.png)
+- **计量三级降级**：优先用上游回传的 usage（最准），没有就 tiktoken 精确编码，再没有就启发式估算——离线、未知模型也能出数，账本永远有账可对
+- **流式完整记账**：SSE 逐 chunk 解析，自动注入 `include_usage` 让上游回传真实用量，跨 chunk 切碎也不丢
+- **预算硬拦截在转发之前**：超限请求直接 402，不浪费上游额度
+- **密钥只存指纹**：SHA-256 前 12 位，可映射成应用名（显示「Claude Code」而不是一串哈希）
 
-移动端适配：
+## 特性一览
 
-![移动端](docs/media/mobile.png)
+| | 能做什么 |
+|---|---|
+| 代理 | OpenAI 兼容协议；SSE 流式；37+ 上游路径别名（`/v1/deepseek/…`）；重定向逐跳校验 |
+| 计量 | tokens（含 cached / reasoning）、成本（LiteLLM 价格表 2000+ 模型 + 手动覆盖）、延迟 / TTFT / P95 |
+| 归因 | 项目（请求头）· 会话（session）· 应用（密钥指纹别名）· 厂商 / 模型 / 端点 |
+| 仪表盘 | 今日 / 本月花费、预算进度条、趋势图（成本 / tokens / 请求 / 延迟）、成本构成、可排序明细、离线演示数据 |
+| 预算 | 日 / 月预算，80% 告警，超限 402；钉钉 / 企业微信 / 飞书 Webhook |
+| 数据 | CSV 导出（防公式注入）/ JSONL 导出 / CSV 多机幂等导入；retention 自动清理 |
+| 接入 | `tokenlens onboard` 扫描本机 AI 应用并自动改写（Claude Code，可还原）；SDK 埋点（装饰器 / openai 补丁） |
+| 安全 | 本机优先；dashboard_token 鉴权；CSRF 防护；DNS rebinding 防护；请求体大小上限；完整分析见 [docs/ANALYSIS.md](docs/ANALYSIS.md) |
 
-## 品牌视觉
-
-品牌宣传视频（30 秒：品牌片头 → 真实操作演示 → 品牌片尾）：
-
-<video src="docs/media/tokenlens-brand.mp4" controls width="720" poster="docs/media/brand-wide.png"></video>
-
-品牌主视觉 · 横版（1600×900，官网 / 社媒头条 / 公众号头图）：
-
-![品牌主视觉横版](docs/media/brand-wide.png)
-
-品牌主视觉 · 竖版（1080×1440，小红书 / 朋友圈 / 手机海报）：
-
-![品牌主视觉竖版](docs/media/brand-vertical.png)
-
-## 它怎么工作
-
-```mermaid
-graph LR
-    Client["你的应用<br/>base_url 改一行"] --> Proxy["TokenLens 代理<br/>127.0.0.1:8787<br/>计量 + 成本"]
-    Proxy --> Upstream["上游 LLM<br/>OpenAI / DeepSeek / Qwen / Claude / ..."]
-    Proxy -->|"SQLite"| DB[(本地用量库)]
-    DB --> Dash["Web 仪表盘<br/>预算告警"]
-```
-
-不改业务代码，不碰你的 API Key（Authorization 头原样转发），数据全部留在本机。
-
-## 仪表盘（花销账本）
-
-- **钱为主线**：今日 / 本月花费大数字 + 日 / 月预算进度条，超 80% 变琥珀、超支变红，预算直接在面板里改
-- **用量趋势**：成本 / tokens / 请求数 / 延迟切换，按小时或天聚合
-- **成本构成**：按模型 / 项目 / 厂商看谁在花钱
-- **调用明细**：列头排序、状态 / 厂商筛选、分页、点行展开错误详情、导出 CSV
-- **设置抽屉**：预算、汇率、告警 webhook、价格覆盖、清空数据一屏搞定
-- 首次接入在页面顶部有引导横幅（一键复制 base_url）；**离线直接打开 `tokenlens/web/index.html` 也能看内嵌演示数据**
-
-## 多厂商接入
-
-同一端口按路径别名路由（别名在 `~/.tokenlens/config.json` 的 `upstreams` 配置，内置 openai / deepseek / moonshot / zhipu / dashscope / anthropic / siliconflow）：
+## 质量与测试
 
 ```
-http://127.0.0.1:8787/v1/chat/completions           → 默认上游
-http://127.0.0.1:8787/v1/deepseek/chat/completions  → DeepSeek
-http://127.0.0.1:8787/v1/dashscope/chat/completions → 通义千问（OpenAI 兼容）
-http://127.0.0.1:8787/v1/anthropic/v1/messages      → Claude 原生 API
+单元测试        59/59   （计量 / 存储 / 鉴权 / 价格 / SDK）
+onboard 测试    26/26   （接入 / 还原 / 别名）
+端到端冒烟      52/52   （真实进程：代理 → mock 上游 → 断言账本）
+类型检查        mypy 0 error（CI 门禁）
+攻击回归        31 项    （SSRF / 注入 / CSRF / 并发 / 计量精度）
 ```
 
-请求头 `X-TokenLens-Upstream: <url>` 临时指定上游，`X-TokenLens-Project: <name>` 打业务标签（按项目统计用）。
+## 已知边界（诚实声明）
 
-## 计量与成本
+- 预算硬拦截在极端并发下是尽力而为（先查后记的固有竞态），个人用量场景足够
+- 价格表是快照（CI 每月自动同步 LiteLLM），厂商调价可能有滞后，可在设置里手动覆盖
+- 多机 Postgres 后端在路线图中，当前只支持 SQLite
 
-- **SSE 流式**：逐 chunk 透传同时解析 usage，自动注入 `stream_options.include_usage`，记录首字延迟（TTFT）
-- **精确优先**：上游返回 usage 用精确值（含缓存命中、推理 token）；不回传时用 tiktoken，再退化为中英加权估算（明细里标 `估`）
-- **成本计算**：价格表从 LiteLLM 同步（2000+ 模型，`scripts/sync_pricing.py` 可更新），豆包 / Kimi 等国内模型内置兜底；缓存命中按厂商折扣计（OpenAI 0.25 折）；未知模型计 0，不污染报表
-- 改价：`python -m tokenlens pricing --set-model my-model 1.0 4.0`（USD / 1M tokens）
+## 文档
 
-## 预算告警
+[更新日志](CHANGELOG.md) · [架构与安全分析](docs/ANALYSIS.md) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [中文官网](https://x33834.github.io/tokenlens/)
 
-```bash
-python -m tokenlens budget --daily 20 --monthly 400
-```
+## 许可
 
-达阈值 80% 告警（日预算 1 小时内只报一次、月预算 24 小时内只报一次，避免刷屏）：仪表盘预算条变色、控制台输出、可选 webhook 推送（支持钉钉 / 企业微信 / 飞书 / 通用 JSON）。历史记录在仪表盘「预算告警记录」和 `python -m tokenlens alerts` 里都能查。
-
-**预算硬拦截**（默认开启）：预算超限后新请求直接 402 拒绝、不再转发上游（响应 `X-TokenLens-Scope: daily|monthly`，明细标「拒」）；可在设置抽屉或 `config set enforce_budget false` 关闭，`enforce_budget_ratio` 可提前到 80% 就拦。
-
-## CLI
-
-```bash
-python -m tokenlens start       [--port 8787] [--upstream URL] [--daily 20]
-python -m tokenlens stats       [--range 7d] [--project X] [--model Y] [--json]
-python -m tokenlens top         [--field model|project|provider|endpoint|day]
-python -m tokenlens export      [--out usage.csv] [--range 30d] [--format csv|jsonl]
-python -m tokenlens import-csv  usage.csv          # 多机合并导入（按 request_id 去重）
-python -m tokenlens pricing     [--model gpt-4o] [--set-model NAME IN OUT]
-python -m tokenlens budget      [--daily 20] [--monthly 400]
-python -m tokenlens alerts      [--limit 20]
-python -m tokenlens seed-demo   [--n 600] [--days 7]
-python -m tokenlens prune       [--days N]   # 清理 N 天前的记录（默认取 retention_days）
-python -m tokenlens reset       # 清空数据
-python -m tokenlens live        # 实时查看近 60 秒流量
-python -m tokenlens config get KEY          # 查看单个配置项
-python -m tokenlens config set KEY VALUE    # 修改配置项（自动按类型转换）
-python -m tokenlens doctor      # 环境自检
-```
-
-**多机合并**：在每台机器上 `export` 一份 CSV，用 `import-csv` 并入汇总机；
-相同 `request_id` 的请求只保留一份（无 request_id 的行按时间+模型+token 指纹去重）。
-JSONL 导出（`--format jsonl`）每行一个 JSON 对象，天然规避 CSV 公式注入，适合程序化消费。
-
-**会话归因**：请求带 `X-TokenLens-Session: <会话ID>` 请求头（或 SDK `track(..., session_id=...)`），
-即可在仪表盘按会话下拉筛选统计/明细/导出，把多轮对话或任务级成本拆开看。
-
-## 配置（~/.tokenlens/config.json）
-
-| 键 | 默认 | 说明 |
-|---|---|---|
-| `port` / `host` | 8787 / 127.0.0.1 | 监听地址 |
-| `upstreams` | 内置 7 家 | 路径别名 → 上游 base url |
-| `default_upstream` | OpenAI | 无别名时的转发目标 |
-| `budget_daily` / `budget_monthly` | 10 / 200 | 预算（USD），0 = 不限 |
-| `cached_discounts` | `{"openai": 0.25}` | 按厂商缓存命中折扣 |
-| `pricing_overrides` | `{}` | 自定义价格 `{model:{in,out}}` USD/1M |
-| `usd_cny_rate` | 7.2 | 仪表盘人民币换算 |
-| `webhook_url` / `webhook_type` | 空 / generic | 告警推送地址与通道（dingtalk / wecom / feishu） |
-| `inject_stream_usage` | true | 流式自动要求上游回传 usage |
-| `dashboard_token` | 空 | 仪表盘访问令牌（留空不鉴权；配置后 API 需 `Authorization: Bearer <token>`） |
-| `enforce_budget` | true | 预算硬拦截开关（超限请求 402 拒绝） |
-| `enforce_budget_ratio` | 1.0 | 拦截阈值（占预算比例，0.8 = 用到 80% 就拦） |
-| `allow_private_upstreams` | false | 是否允许请求头/查询参数把上游指向内网地址（默认禁止，防 SSRF；配置里的 `upstreams` 不受影响） |
-| `retention_days` | 0 | 数据保留天数（0 = 不清理）；`tokenlens prune` 按此清理 |
-
-环境变量速配：`TOKENLENS_PORT`、`TOKENLENS_UPSTREAM`、`TOKENLENS_DAILY_BUDGET`。
-
-## 测试
-
-```bash
-python scripts/smoke_test.py   # 端到端冒烟（46 项：转发/流式/并发/预算/拦截/SSRF/链路头/会话归因/JSONL/SDK/CLI）
-python scripts/unit_test.py    # 单元测试（37 项：价格表/成本/store/拦截/鉴权/webhook/SDK 埋点）
-python -m mypy tokenlens/      # 类型检查门禁（CI 强制执行）
-```
-
-## Docker 部署
-
-```bash
-docker build -t tokenlens:1.2.1 .
-docker run -d --name tokenlens -p 8787:8787 \
-  -v $HOME/.tokenlens:/root/.tokenlens tokenlens:1.2.1
-# 或 docker compose up -d（数据持久化到 ./tokenlens-data）
-```
-
-镜像以 `--host 0.0.0.0` 启动，含健康检查；配置与 SQLite 数据挂载在 `/root/.tokenlens`。
-⚠ 对外监听时修改类操作（改预算/清数据）默认被保护：先 `config set dashboard_token xxx` 再使用。
-
-## 目录结构
-
-```
-tokenlens/
-├── tokenlens/                # 包
-│   ├── proxy.py              # 透明代理（SSE 行缓冲解析 + 共享连接池）
-│   ├── meter.py              # 计量核心 + 预算告警 + webhook 卡片
-│   ├── tokenizer.py          # token 计数（usage > tiktoken > 启发式）
-│   ├── pricing.py            # 价格表（LiteLLM 同步 + 内置兜底）与成本计算
-│   ├── store.py              # SQLite 存储与聚合（读连接 + 独立写连接）
-│   ├── api.py                # 仪表盘 REST API（统计 / 设置 / 导出 / 告警）
-│   ├── server.py             # 服务组装（共享 httpx 连接池）
-│   ├── sdk.py                # 装饰器 / monkeypatch 埋点
-│   ├── demo.py               # 演示数据生成
-│   ├── pricing_data.json     # LiteLLM 价格快照（sync_pricing.py 更新）
-│   └── web/                  # 单文件仪表盘（离线可看演示）+ 自托管 ECharts
-├── examples/mock_upstream.py # 模拟上游
-├── scripts/smoke_test.py     # 端到端测试
-├── scripts/unit_test.py      # 单元测试
-└── scripts/sync_pricing.py   # 同步模型价格表
-```
-
-## 隐私与边界
-
-- 只记录元数据（模型、token、成本、延迟、状态、字节量），不记录 prompt / 响应内容
-- Authorization 头仅转发不落库，API Key 只存 SHA-256 前 12 位指纹
-- 单机单进程 SQLite，适合个人与中小团队本地网关；跨机汇总可定期 `export` CSV
-
-## 安全
-
-- **上游地址校验（防 SSRF）**：通过 `X-TokenLens-Upstream` 头 / `?upstream=` 参数指定的上游只允许 http/https，且默认拒绝回环、私网、链路本地等地址；确需转发到内网模型服务时设置 `allow_private_upstreams = true`（仅放开该校验）
-- **对外监听保护**：`host` 非回环且未设置 `dashboard_token` 时，修改类接口（配置 / 预算 / 清空 / 灌数据）返回 401，需先配置访问令牌
-- **仪表盘 XSS 防护**：明细表、告警列表、图表 tooltip 渲染的用户可控字段（模型名 / 项目 / 错误信息）均已 HTML 转义
-- **CSV 导出防护**：以 `=` `+` `-` `@` 等开头的字段导出时前置单引号，避免 Excel/WPS 公式注入
-- 建议仅监听 `127.0.0.1`；若对外暴露，务必配置 `dashboard_token`
-
-仓库地址：<https://gitcode.com/badhope/tokenlens>
+[MIT](LICENSE) —— 随便用。如果回来提个 issue 说说你拿它干了什么，那就更好了。

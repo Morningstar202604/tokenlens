@@ -1,0 +1,27 @@
+# TokenLens
+
+> 零侵入的本地 AI Token 用量监控代理：改一行 base_url，把每次 AI 调用的 token、成本与延迟记成一本本地账本。
+
+A local-first transparent proxy that meters every AI call (tokens, cost, latency) with a spend-ledger dashboard and hard budget enforcement. Data never leaves the machine.
+
+## 项目概览 Overview
+- 透明代理 Transparent proxy: OpenAI 兼容协议，SSE 流式转发，37+ 上游路径别名路由
+- 计量 Metering: 上游 usage 精确值 → tiktoken → 启发式（三级降级）；价格表同步自 LiteLLM（2000+ 模型）
+- 仪表盘 Dashboard: 今日/本月花费、预算进度、成本构成、调用明细、导出 CSV/JSONL
+- 预算 Budget: 阈值告警 + 超限 402 硬拦截 + 钉钉/企微/飞书 Webhook
+- 隐私 Privacy: 只记元数据，prompt/响应不落库；API Key 仅存 12 位 SHA-256 指纹；本地 SQLite
+
+## 部署 Deploy
+- pip: `pip install . && python -m tokenlens start` → http://127.0.0.1:8787
+- Docker: `docker compose up -d`
+- Windows: 双击 TokenLens.exe
+
+## 链接 Links
+- 源码 Source: https://github.com/x33834/tokenlens
+- 中文文档 README: https://github.com/x33834/tokenlens/blob/main/README.md
+- English README: https://github.com/x33834/tokenlens/blob/main/README.en.md
+- 更新日志 Changelog: https://github.com/x33834/tokenlens/blob/main/CHANGELOG.md
+- 架构图 Architecture: https://github.com/x33834/tokenlens/blob/main/docs/media/architecture.svg
+
+## 开源协议 License
+MIT
