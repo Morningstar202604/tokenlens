@@ -133,6 +133,74 @@ def main():
     check("claude 幂等键与缓存", c["request_id"] == "claude:u-1" and c["cached_tokens"] == 900)
     check("claude 空目录 → 空", localscan.scan_claude(tmp / "nope") == [])
 
+    print("[入库成本估算] 未记价行按牌价估算,应用自记值不动")
+    r3 = localscan.import_local(cfg, store, home=fake_home)
+    check("补导入 zcode+claude 各 1 行", r3["zcode"]["imported"] == 1 and r3["claude-code"]["imported"] == 1, str(r3))
+    row = lambda rid: store._local.execute(
+        "SELECT cost, cost_source FROM requests WHERE request_id=?", (rid,)).fetchone()
+    zc = row("zcode:rq-1")
+    check("zcode 行按牌价估算", zc["cost"] > 0 and zc["cost_source"] == "zcode-est",
+          f"cost={zc['cost']} src={zc['cost_source']}")
+    cc = row("claude:u-1")
+    check("claude 行按牌价估算", cc["cost"] > 0 and cc["cost_source"] == "claude-est",
+          f"cost={cc['cost']} src={cc['cost_source']}")
+    oc = row("opencode:ses_ok")
+    check("opencode 未记价行估算", oc["cost"] > 0 and oc["cost_source"] == "opencode-est",
+          f"cost={oc['cost']} src={oc['cost_source']}")
+    bd = row("opencode:ses_badjson")
+    check("应用自记成本不覆盖", bd["cost"] == 1.5 and bd["cost_source"] == "opencode-local",
+          f"cost={bd['cost']} src={bd['cost_source']}")
+    r4 = localscan.import_local(cfg, store, home=fake_home)
+    check("重扫不重复入账且估算幂等",
+          r4["opencode"]["imported"] == 0 and row("zcode:rq-1")["cost_source"] == "zcode-est", str(r4))
+
+    print("[免费与未知价] 0 即真实,不臆造")
+    fake_home2 = tmp / "home2"
+    db2path = fake_home2 / ".local" / "share" / "opencode" / "opencode.db"
+    db2path.parent.mkdir(parents=True)
+    con = sqlite3.connect(db2path)
+    con.execute("""CREATE TABLE session (
+        id TEXT PRIMARY KEY, directory TEXT, model TEXT, cost REAL,
+        tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+        tokens_cache_read INTEGER, tokens_cache_write INTEGER,
+        time_created INTEGER, time_updated INTEGER, agent TEXT)""")
+    con.executemany("INSERT INTO session VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", [
+        ("ses_free", "C:/f", '{"id":"mimo-v2.5-free","providerID":"xiaomi-mimo"}',
+         0.0, 5000, 800, 0, 0, 0, ts_ms, ts_ms, "build"),
+        ("ses_unknown", "C:/u", '{"id":"step-5-preview","providerID":"stepfun"}',
+         0.0, 4000, 600, 0, 0, 0, ts_ms, ts_ms, "build"),
+        ("ses_appcost", "C:/a", '{"id":"glm-4.6","providerID":"zhipu"}',
+         0.02, 1000, 200, 0, 0, 0, ts_ms, ts_ms, "build"),
+    ])
+    con.commit()
+    con.close()
+    cfg2 = Config()
+    cfg2.db_path = str(tmp / "ledger2.db")
+    store2 = Store(cfg2.db_path)
+    localscan.import_local(cfg2, store2, home=fake_home2)
+    row2 = lambda rid: store2._local.execute(
+        "SELECT model, cost, cost_source FROM requests WHERE request_id=?", (rid,)).fetchone()
+    fr = row2("opencode:ses_free")
+    check("-free 模型不按牌价高估", fr["cost"] == 0.0 and fr["cost_source"] == "opencode-local",
+          f"cost={fr['cost']} src={fr['cost_source']}")
+    ur = row2("opencode:ses_unknown")
+    check("未知价模型保持 0 不臆造", ur["cost"] == 0.0 and ur["cost_source"] == "opencode-local",
+          f"cost={ur['cost']} src={ur['cost_source']}")
+    ar = row2("opencode:ses_appcost")
+    check("应用记价原样保留", ar["cost"] == 0.02 and ar["cost_source"] == "opencode-local",
+          f"cost={ar['cost']} src={ar['cost_source']}")
+
+    print("[reprice 回填] 价格表更新后重算存量")
+    cfg2.pricing_overrides = {"step-5-preview": {"in": 2.0, "out": 5.0}}
+    n_upd = localscan.reprice_local(cfg2, store2)
+    ur2 = row2("opencode:ses_unknown")
+    check("存量 0 成本行被回填", n_upd == 1 and ur2["cost"] > 0 and ur2["cost_source"] == "opencode-est",
+          f"upd={n_upd} cost={ur2['cost']} src={ur2['cost_source']}")
+    n2 = localscan.reprice_local(cfg2, store2)
+    check("reprice 幂等", n2 == 0 and row2("opencode:ses_unknown")["cost"] == ur2["cost"], f"upd={n2}")
+    check("回填不碰 -free 与自记行",
+          row2("opencode:ses_free")["cost"] == 0.0 and row2("opencode:ses_appcost")["cost"] == 0.02)
+
     passed = sum(1 for _, c, _ in CHECK if c)
     print(f"\n{passed}/{len(CHECK)} PASS")
     return 0 if passed == len(CHECK) else 1

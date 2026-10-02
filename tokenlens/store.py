@@ -169,6 +169,37 @@ class Store:
         skipped = len(recs) - imported - dup
         return {"imported": imported, "skipped": skipped, "duplicates": dup}
 
+    def reprice(self, estimator) -> int:
+        """按当前价格表重算本地扫描行成本，返回更新行数（幂等）。
+
+        estimator(model, pin, pout, cached, provider) -> float|None；
+        None/<=0 表示免费档或价格未知，保持 0 不臆造。应用自记成本
+        （cost>0 且 cost_source 以 -local 结尾）不覆盖；已估算行（-est）
+        随价格表刷新重算。仅作用于本地扫描行（cost_source 含 -local/-est），
+        代理记账行（reported/estimated）不受影响。"""
+        with self._lock:
+            rows = self._local.execute(
+                "SELECT id, model, prompt_tokens, completion_tokens, cached_tokens, "
+                "provider, cost, cost_source FROM requests "
+                "WHERE cost_source LIKE '%-local' OR cost_source LIKE '%-est'").fetchall()
+            updates = []
+            for r in rows:
+                if (r["cost"] or 0) > 0 and str(r["cost_source"] or "").endswith("-local"):
+                    continue
+                v = estimator(r["model"], r["prompt_tokens"] or 0, r["completion_tokens"] or 0,
+                              r["cached_tokens"] or 0, r["provider"])
+                if not v or v <= 0:
+                    continue
+                v = round(v, 8)
+                if abs((r["cost"] or 0) - v) < 1e-12:
+                    continue
+                updates.append((v, str(r["cost_source"] or "").replace("-local", "-est"), r["id"]))
+            if updates:
+                self._local.executemany(
+                    "UPDATE requests SET cost=?, cost_source=? WHERE id=?", updates)
+                self._local.commit()
+        return len(updates)
+
     # ---------------- 查询 ----------------
     def _where(self, start: Optional[float], end: Optional[float],
                project: Optional[str], model: Optional[str], provider: Optional[str],

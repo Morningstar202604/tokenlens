@@ -12,7 +12,8 @@ Cursor 为闭源 SQLite 格式且随版本变动，不扫描（走手动接入�
 
 OpenCode session.model 是 JSON 串（{"id","providerID","variant"}），时间戳为毫秒；
 ZCode model 是 {"modelId","providerId"}、时间为 ISO UTC；Claude Code 时间为 ISO UTC。
-cost 一律取应用自记值，缺省 0（订阅/免费额度），如实记录不臆造价格。
+cost 取应用自记值；未记价时按牌价估算（cost_source 以 -est 标记），
+-free 档位与价格表未收录的模型保持 0，如实记录不臆造价格。
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from .config import Config
+from .pricing import CostCalculator, PricingTable
 from .store import Store
 
 AUTO_SCAN_INTERVAL = 600.0
@@ -233,10 +235,36 @@ SCAN_KEY_HASHES = {
 }
 
 
+def _estimator(cfg: Config):
+    """按牌价的成本估算器（USD）。-free 档位与价格表未收录的模型返回 None，调用方保持 0。"""
+    calc = CostCalculator(PricingTable(cfg.pricing_overrides),
+                          cfg.cached_discount, cfg.cached_discounts)
+
+    def est(model, pin, pout, cached, provider):
+        if str(model or "").lower().endswith("-free"):
+            return None
+        return calc.compute(model, pin, pout, cached, provider)
+
+    return est
+
+
+def _apply_estimate(recs: list, est) -> None:
+    """就地为未记价的扫描行估算成本；应用自记值（>0）不动。"""
+    for r in recs:
+        if (r.get("cost") or 0) > 0:
+            continue
+        v = est(r.get("model"), r.get("prompt_tokens") or 0, r.get("completion_tokens") or 0,
+                r.get("cached_tokens") or 0, r.get("provider"))
+        if v and v > 0:
+            r["cost"] = round(v, 8)
+            r["cost_source"] = str(r.get("cost_source") or "").replace("-local", "-est")
+
+
 def import_local(cfg: Config, store: Store, app: str = "", home: Any = None) -> Dict[str, Any]:
     """扫描（可按应用过滤）并幂等导入账本。返回 {app: {found, imported, skipped}}。
-    home 仅测试注入用，默认真实用户目录。"""
+    home 仅测试注入用，默认真实用户目录。导入后按当前价格表回填存量本地行（幂等）。"""
     home = home or Path.home()
+    est = _estimator(cfg)
     result: Dict[str, Any] = {}
     for name, scan in SCANNERS.items():
         if app and name != app:
@@ -245,10 +273,17 @@ def import_local(cfg: Config, store: Store, app: str = "", home: Any = None) -> 
         if not recs:
             result[name] = {"found": 0, "imported": 0, "skipped": 0}
             continue
+        _apply_estimate(recs, est)
         stats = store.import_rows(recs)
         result[name] = {"found": len(recs), "imported": stats.get("imported", 0),
                         "skipped": stats.get("skipped", 0) + stats.get("duplicates", 0)}
+    store.reprice(est)
     return result
+
+
+def reprice_local(cfg: Config, store: Store) -> int:
+    """按当前价格表重算存量本地扫描行成本（幂等），返回更新行数。"""
+    return store.reprice(_estimator(cfg))
 
 
 def start_autoscan(cfg: Config, store: Store, interval: float = AUTO_SCAN_INTERVAL) -> None:
