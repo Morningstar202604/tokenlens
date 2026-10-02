@@ -4,16 +4,16 @@
 
 # TokenLens
 
-**把每次 AI 调用的 token 与花销，记成一本本地账本。**
+**Every AI call, metered — tokens and spend in a ledger that stays on your machine.**
 
-零侵入透明代理 · 数据不出本机 · 37+ 上游 · 5 分钟接入
+Zero-intrusion transparent proxy · Local-first · 37+ upstreams · 5-minute setup
 
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](scripts/smoke_test.py)
 [![Version](https://img.shields.io/badge/version-1.2.1-orange)](CHANGELOG.md)
 
-[官网（中文）](https://x33834.github.io/tokenlens/) ｜ [English](README.en.md) ｜ [更新日志](CHANGELOG.md)
+[Website](https://x33834.github.io/tokenlens/) ｜ [中文](README.zh-CN.md) ｜ [日本語](README.ja.md) ｜ [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -22,107 +22,112 @@
 <table>
 <tr><td width="50%">
 
-**你遇到的问题**
+**The problem you know too well**
 
-- 月底看账单才发现这个月烧了几百刀
-- 多个项目 / 多个应用混在一起，说不清钱花在哪
-- 想限制用量，只能靠手动盯着
-- 用了云端监控，prompt 和密钥都要交给第三方
+- The bill arrives before you notice the burn
+- Multiple projects and apps share one key; nobody can say where the money went
+- Usage caps mean babysitting a dashboard
+- Cloud monitoring wants your prompts and your keys
 
 </td><td width="50%">
 
-**TokenLens 的做法**
+**How TokenLens handles it**
 
-- 每一笔调用实时记账：token、成本、延迟、成功与否
-- 按项目 / 应用 / 模型 / 厂商拆分，透视到「谁在花钱」
-- 预算阈值告警，超限直接 402 拦截，不转发上游
-- 全程本机：只记元数据，prompt / 响应不落库，密钥只存指纹
+- Every call is metered in real time: tokens, cost, latency, success/failure
+- Split by project / app / model / provider — see exactly who is spending
+- Threshold alerts, and over-budget calls get a 402 before reaching the provider
+- Local-first: metadata only, prompts/responses never stored, keys reduced to fingerprints
 
 </td></tr>
 </table>
 
-## 60 秒上手
+## Download
+
+> **Windows**: grab the single-file `TokenLens.exe` from [Releases](https://github.com/x33834/tokenlens/releases/latest) — double-click, proxy + dashboard come up on :8788.
+> **Star the repo** if it saves you money — it genuinely helps other people find it: [github.com/x33834/tokenlens](https://github.com/x33834/tokenlens/stargazers)
+
+## Up and running in 60 seconds
 
 ```bash
-# 1. 安装并启动（默认端口 8787）
+# 1. Install and start (default port 8787)
 pip install . && python -m tokenlens start
 
-# 2. 把客户端的 base_url 指过来（任何 OpenAI 兼容应用都行）
+# 2. Point any OpenAI-compatible client at it
 export OPENAI_BASE_URL=http://127.0.0.1:8787/v1
 
-# 3. 打开花销账本
+# 3. Open the spend ledger
 http://127.0.0.1:8787
 ```
 
-到此结束。不需要改任何业务代码，不需要注册任何服务。没有真实 Key 也能体验：`python -m tokenlens seed-demo` 灌演示数据，或 `python examples/mock_upstream.py` 起模拟上游。
+That's the whole integration. No business code changes, no account, no cloud. No real API key needed to try it: `python -m tokenlens seed-demo` loads demo data, `python examples/mock_upstream.py` runs a mock provider.
 
-### 其他部署方式
+### Other ways to run it
 
-| 方式 | 适合 | 命令 |
+| Method | Good for | Command |
 |---|---|---|
-| pip / 源码 | 日常开发 | 上面的三行 |
-| Docker | 服务器 / NAS 常驻 | `docker compose up -d`（[Dockerfile](Dockerfile)） |
-| Windows 免安装 | 双击就用的桌面用户 | PyInstaller 单文件 `dist/TokenLens.exe`，双击即起（代理 + 仪表盘 :8788） |
-| 多机合并 | 几台机器分开跑 | 各自导出 CSV → `tokenlens import-csv` 幂等合并 |
+| pip / source | daily development | the three lines above |
+| Docker | servers / NAS | `docker compose up -d` ([Dockerfile](Dockerfile)) |
+| Windows, no install | desktop users | single-file PyInstaller build `dist/TokenLens.exe` — double-click, proxy + dashboard on :8788 |
+| Multi-machine | work split across boxes | export CSV on each → `tokenlens import-csv` merges idempotently |
 
-## 它长什么样
+## What it looks like
 
 <video src="docs/media/tokenlens-promo.mp4" controls width="720" poster="docs/media/desktop.png"></video>
 
-*22 秒真实操作：骨架屏 → KPI 数字滚动 → 图表维度切换 → 明细展开 → 设置抽屉 → 告警时间轴。另有 [9 秒快速版](docs/media/tokenlens-demo-live.webm)。*
+*22s real capture: skeleton loading → animated KPI counters → chart dimensions → row expansion → settings drawer → alert timeline. There's also a [9-second quick cut](docs/media/tokenlens-demo-live.webm).*
 
-| 桌面端 | 移动端 |
+| Desktop | Mobile |
 |---|---|
-| <img src="docs/media/desktop.png" alt="桌面端仪表盘" width="100%"> | <img src="docs/media/mobile.png" alt="移动端" width="72%"> |
+| <img src="docs/media/desktop.png" alt="Desktop dashboard" width="100%"> | <img src="docs/media/mobile.png" alt="Mobile layout" width="72%"> |
 
-| 设置抽屉 | 告警时间轴 |
+| Settings drawer | Alert timeline |
 |---|---|
-| <img src="docs/media/drawer.png" alt="设置抽屉" width="100%"> | <img src="docs/media/alerts.png" alt="告警时间轴" width="100%"> |
+| <img src="docs/media/drawer.png" alt="Settings drawer" width="100%"> | <img src="docs/media/alerts.png" alt="Alert timeline" width="100%"> |
 
-## 架构
+## Architecture
 
-<img src="docs/media/architecture.svg" alt="架构：应用 → TokenLens（代理/计量/账本/仪表盘）→ 上游 LLM" width="100%">
+<img src="docs/media/architecture.svg" alt="Architecture: apps → TokenLens (proxy / metering / ledger / dashboard) → upstream LLMs" width="100%">
 
-几个关键设计：
+Design notes worth reading:
 
-- **计量三级降级**：优先用上游回传的 usage（最准），没有就 tiktoken 精确编码，再没有就启发式估算——离线、未知模型也能出数，账本永远有账可对
-- **流式完整记账**：SSE 逐 chunk 解析，自动注入 `include_usage` 让上游回传真实用量，跨 chunk 切碎也不丢
-- **预算硬拦截在转发之前**：超限请求直接 402，不浪费上游额度
-- **密钥只存指纹**：SHA-256 前 12 位，可映射成应用名（显示「Claude Code」而不是一串哈希）
+- **Three-tier metering fallback**: prefer the upstream's own usage (exact), then tiktoken, then heuristics — the ledger always has numbers, even offline or on unknown models
+- **Streaming is fully metered**: SSE parsed chunk-by-chunk, `include_usage` auto-injected so the provider reports real usage, survives chunk-split events
+- **Budget enforcement happens before forwarding**: rejected calls cost you nothing upstream
+- **Keys are stored as fingerprints**: first 12 hex chars of SHA-256, mappable to friendly app names ("Claude Code", not a hash)
 
-## 特性一览
+## Feature map
 
-| | 能做什么 |
+| | What it does |
 |---|---|
-| 代理 | OpenAI 兼容协议；SSE 流式；37+ 上游路径别名（`/v1/deepseek/…`）；重定向逐跳校验 |
-| 计量 | tokens（含 cached / reasoning）、成本（LiteLLM 价格表 2000+ 模型 + 手动覆盖）、延迟 / TTFT / P95 |
-| 归因 | 项目（请求头）· 会话（session）· 应用（密钥指纹别名）· 厂商 / 模型 / 端点 |
-| 仪表盘 | 今日 / 本月花费、预算进度条、趋势图（成本 / tokens / 请求 / 延迟）、成本构成、可排序明细、离线演示数据 |
-| 预算 | 日 / 月预算，80% 告警，超限 402；钉钉 / 企业微信 / 飞书 Webhook |
-| 数据 | CSV 导出（防公式注入）/ JSONL 导出 / CSV 多机幂等导入；retention 自动清理 |
-| 接入 | `tokenlens onboard` 扫描本机 AI 应用并自动改写（Claude Code，可还原）；SDK 埋点（装饰器 / openai 补丁） |
-| 安全 | 本机优先；dashboard_token 鉴权；CSRF 防护；DNS rebinding 防护；请求体大小上限；完整分析见 [docs/ANALYSIS.md](docs/ANALYSIS.md) |
+| Proxy | OpenAI-compatible; SSE streaming; 37+ path-alias upstreams (`/v1/deepseek/…`); redirect hops re-validated |
+| Metering | tokens (incl. cached / reasoning), cost (LiteLLM price table, 2,000+ models + manual overrides), latency / TTFT / P95 |
+| Attribution | project (header) · session · app (key-fingerprint alias) · provider / model / endpoint |
+| Dashboard | today / monthly spend, budget bars, trends (cost / tokens / requests / latency), cost breakdown, sortable detail, offline demo data |
+| Budget | daily / monthly, 80% alert, 402 hard block; DingTalk / WeCom / Feishu webhooks |
+| Data | CSV export (formula-injection safe) / JSONL export / idempotent CSV merge; retention auto-prune |
+| Onboarding | `tokenlens onboard` scans local AI apps and wires them safely (Claude Code, reversible); SDK instrumentation (decorator / openai patch) |
+| Security | local-first; dashboard_token auth; CSRF protection; DNS-rebinding protection; request size caps; full analysis in [docs/ANALYSIS.md](docs/ANALYSIS.md) |
 
-## 质量与测试
+## Quality
 
 ```
-单元测试        59/59   （计量 / 存储 / 鉴权 / 价格 / SDK）
-onboard 测试    26/26   （接入 / 还原 / 别名）
-端到端冒烟      52/52   （真实进程：代理 → mock 上游 → 断言账本）
-类型检查        mypy 0 error（CI 门禁）
-攻击回归        31 项    （SSRF / 注入 / CSRF / 并发 / 计量精度）
+Unit tests          59/59   (metering / storage / auth / pricing / SDK)
+Onboard tests       26/26   (wire / unwire / aliases)
+End-to-end smoke    52/52   (real processes: proxy → mock upstream → assert ledger)
+Type check          mypy 0 errors (CI gate)
+Adversarial suite   31 checks (SSRF / injection / CSRF / concurrency / metering accuracy)
 ```
 
-## 已知边界（诚实声明）
+## Known limits (stated honestly)
 
-- 预算硬拦截在极端并发下是尽力而为（先查后记的固有竞态），个人用量场景足够
-- 价格表是快照（CI 每月自动同步 LiteLLM），厂商调价可能有滞后，可在设置里手动覆盖
-- 多机 Postgres 后端在路线图中，当前只支持 SQLite
+- Budget enforcement is best-effort under extreme concurrency (check-then-act race); fine for personal scale
+- The price table is a snapshot (synced monthly from LiteLLM); provider price changes can lag — override in settings
+- Postgres backend is on the roadmap; SQLite only for now
 
-## 文档
+## Docs
 
-[更新日志](CHANGELOG.md) · [架构与安全分析](docs/ANALYSIS.md) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [中文官网](https://x33834.github.io/tokenlens/)
+[Changelog](CHANGELOG.md) · [Architecture & security analysis](docs/ANALYSIS.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [Website](https://x33834.github.io/tokenlens/en/)
 
-## 许可
+## License
 
-[MIT](LICENSE) —— 随便用。如果回来提个 issue 说说你拿它干了什么，那就更好了。
+[MIT](LICENSE) — use it freely. If you come back and open an issue about what you built with it, even better.

@@ -572,6 +572,11 @@ def build_parser():
 
 
 def main(argv=None):
+    if sys.version_info < (3, 10):
+        v = f"{sys.version_info.major}.{sys.version_info.minor}"
+        print(f"[tokenlens] 错误: 需要 Python 3.10+，当前 {v}（Python 3.10+ required）。")
+        print("  → 安装新版本后重试: https://www.python.org/downloads/")
+        return 1
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

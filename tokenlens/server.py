@@ -94,13 +94,47 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     return app
 
 
+def _preflight(cfg: Config):
+    """启动前体检：环境缺什么，第一时间用能落地的话讲清楚，而不是让用户面对堆栈。"""
+    import socket
+    bind_host = "127.0.0.1" if cfg.host in ("0.0.0.0", "::") else cfg.host
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((bind_host, cfg.port))
+        except OSError:
+            print(f"[tokenlens] 错误: 端口 {cfg.port} 已被占用（Port {cfg.port} is already in use）。")
+            print("  → 换个端口再启动: tokenlens start --port 9000   (try another port)")
+            print(f"  → 或查一下谁占着: netstat -ano | findstr :{cfg.port}")
+            raise SystemExit(1)
+    db_dir = Path(cfg.db_path).expanduser().parent
+    try:
+        db_dir.mkdir(parents=True, exist_ok=True)
+        probe = db_dir / ".tokenlens-write-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        print(f"[tokenlens] 错误: 数据目录不可写 {db_dir}（Data directory not writable）。")
+        print(f"  → 系统返回: {exc}")
+        print("  → 用 TOKENLENS_HOME 换一个可写目录: TOKENLENS_HOME=D:\tokenlens tokenlens start")
+        raise SystemExit(1)
+    if not Path(str(cfg.db_path)).expanduser().exists():
+        print(f"[tokenlens] 首次启动：账本将创建在 {cfg.db_path}")
+
+
 def run(cfg: Optional[Config] = None, reload: bool = False):
     import uvicorn
     cfg = cfg or Config.load()
+    _preflight(cfg)
     app = create_app(cfg)
     print(_banner(cfg))
     _warn_unsafe_deploy(cfg)
-    uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="warning")
+    try:
+        uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="warning")
+    except OSError as exc:
+        print(f"[tokenlens] 错误: 服务启动失败 {exc}")
+        print("  → 常见原因：端口被抢占 / 杀毒软件拦截 / 无网络栈权限，可尝试 --port 换端口")
+        raise SystemExit(1)
 
 
 def _warn_unsafe_deploy(cfg: Config):

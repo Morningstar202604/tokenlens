@@ -1,28 +1,30 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TokenLens · AI Token &amp; Cost Meter — Local-first Transparent Proxy</title>
-<meta name="description" content="Change one base_url and every AI call gets metered — tokens, cost and latency, in a local spend ledger. Spend dashboard, hard budget enforcement, 37+ upstreams. Your data never leaves the machine. MIT licensed.">
-<meta name="keywords" content="AI token metering, API cost tracking, token usage monitor, OpenAI proxy, LLM gateway, budget enforcement, local-first, DeepSeek, Claude, Qwen, open source">
+<title>TokenLens · AI Token 用量监控</title>
+<meta name="description" content="零侵入的本地透明代理：改一行 base_url，记录每次 AI 调用的 token、成本与延迟，配花销账本仪表盘和预算硬拦截。数据不出本机。">
+<meta name="keywords" content="AI token 计量, API 成本监控, token usage, cost tracking, OpenAI proxy, LLM gateway, 预算告警, 本地部署, DeepSeek, Claude, Qwen, 开源">
 <meta name="author" content="badhope">
 <meta name="theme-color" content="#0B0F17">
-<link rel="canonical" href="https://x33834.github.io/tokenlens/">
+<link rel="canonical" href="https://x33834.github.io/tokenlens/zh/">
 <link rel="alternate" hreflang="zh-CN" href="https://x33834.github.io/tokenlens/">
 <link rel="alternate" hreflang="en" href="https://x33834.github.io/tokenlens/">
+<link rel="alternate" hreflang="ja" href="https://x33834.github.io/tokenlens/ja/">
+<link rel="alternate" hreflang="zh-CN" href="https://x33834.github.io/tokenlens/zh/">
 <link rel="alternate" hreflang="x-default" href="https://x33834.github.io/tokenlens/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="TokenLens">
-<meta property="og:title" content="TokenLens — meter every AI call, keep the ledger local">
-<meta property="og:description" content="One-line base_url change. Tokens, cost and latency per call, a spend-ledger dashboard and hard budget enforcement. Data never leaves your machine.">
-<meta property="og:url" content="https://x33834.github.io/tokenlens/">
+<meta property="og:title" content="TokenLens · AI Token 用量监控 — 零侵入本地透明代理">
+<meta property="og:description" content="改一行 base_url，把每次 AI 调用的 token、成本与延迟记成一本本地账本。花销仪表盘、预算硬拦截、37+ 上游。数据不出本机，MIT 开源。">
+<meta property="og:url" content="https://x33834.github.io/tokenlens/zh/">
 <meta property="og:image" content="https://x33834.github.io/tokenlens/media/brand-wide.png">
-<meta property="og:locale" content="en_US">
-<meta property="og:locale:alternate" content="zh_CN">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="TokenLens — AI token &amp; cost meter">
-<meta name="twitter:description" content="Local-first transparent proxy with a spend ledger and hard budget enforcement.">
+<meta name="twitter:title" content="TokenLens · AI Token 用量监控">
+<meta name="twitter:description" content="零侵入本地透明代理：token / 成本 / 延迟记账，预算硬拦截，数据不出本机。">
 <meta name="twitter:image" content="https://x33834.github.io/tokenlens/media/brand-wide.png">
 <script type="application/ld+json">
 {
@@ -31,18 +33,20 @@
   "name": "TokenLens",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Windows, macOS, Linux",
-  "description": "Local-first transparent proxy that meters every AI call (tokens, cost, latency) with a spend-ledger dashboard and hard budget enforcement.",
+  "description": "零侵入的本地 AI Token 用量监控代理：记录每次 AI 调用的 token、成本与延迟，配花销账本仪表盘与预算硬拦截，数据不出本机。",
   "softwareVersion": "1.2.1",
   "license": "https://opensource.org/licenses/MIT",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
   "author": {"@type": "Person", "name": "badhope"},
   "sameAs": [
     "https://github.com/x33834/tokenlens",
-    "https://gitee.com/badhope/tokenlens"
+    "https://github.com/Morningstar202604/tokenlens",
+    "https://gitee.com/badhope/tokenlens",
+    "https://gitcode.com/badhope/tokenlens"
   ]
 }
 </script>
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <style>
   :root{
     --bg:#0B0F17; --bg2:#0F1622; --card:#121A28; --line:#1F2A3A;
@@ -51,18 +55,19 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{background:var(--bg);color:var(--text);font:15px/1.7 -apple-system,"Segoe UI",Inter,sans-serif;-webkit-font-smoothing:antialiased}
+  body{background:var(--bg);color:var(--text);font:15px/1.7 -apple-system,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
   a{color:var(--teal);text-decoration:none}
   a:hover{text-decoration:underline}
   .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
   code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.92em}
+
   .nav{position:sticky;top:0;z-index:10;background:rgba(11,15,23,.86);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
   .nav .wrap{display:flex;align-items:center;gap:20px;height:58px}
   .brand{font-size:16px;font-weight:700;letter-spacing:.2px}
   .brand small{color:var(--dim);font-weight:400;margin-left:8px;font-size:12.5px}
   .nav a.lnk{margin-left:auto;color:var(--muted);font-size:13.5px}
   .nav a.lnk:hover{color:var(--text);text-decoration:none}
-  .nav a.lnk + a.lnk{margin-left:0}
+
   .hero{padding:88px 0 64px;position:relative;overflow:hidden}
   .hero::before{content:'';position:absolute;inset:0;background:
     radial-gradient(600px 300px at 75% -10%, rgba(45,212,191,.14), transparent 65%),
@@ -71,9 +76,9 @@
   .hero .wrap{position:relative}
   .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--teal);border:1px solid rgba(45,212,191,.35);border-radius:999px;padding:5px 14px;margin-bottom:22px;background:rgba(45,212,191,.06)}
   .kicker::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--teal)}
-  h1{font-size:44px;line-height:1.22;font-weight:800;letter-spacing:.3px;max-width:780px}
+  h1{font-size:44px;line-height:1.22;font-weight:800;letter-spacing:.3px;max-width:760px}
   h1 em{font-style:normal;color:var(--teal)}
-  .hero p.lead{color:var(--muted);font-size:16.5px;max-width:660px;margin:18px 0 30px}
+  .hero p.lead{color:var(--muted);font-size:16.5px;max-width:640px;margin:18px 0 30px}
   .cmd{display:inline-flex;align-items:center;gap:10px;background:#0A0E16;border:1px solid var(--line);border-radius:9px;padding:13px 18px;font-size:13.5px;color:var(--teal)}
   .cmd .c1{color:var(--dim)}
   .hero .btns{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap}
@@ -82,21 +87,25 @@
   .btn.solid:hover{background:var(--teal-d);text-decoration:none}
   .btn.ghost{color:var(--muted)}
   .btn.ghost:hover{color:var(--text);border-color:#2A3A50;text-decoration:none}
-  .quick{display:flex;gap:14px;margin-top:46px;border-top:1px solid var(--line);padding-top:26px;flex-wrap:wrap;align-items:center}
+  .quick{display:flex;gap:14px;margin-top:46px;border-top:1px solid var(--line);padding-top:26px;flex-wrap:wrap}
   .quick b{color:var(--text);font-size:13.5px}
   .quick code{color:var(--muted);font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:4px 10px;display:inline-block}
+
   section{padding:56px 0}
   .sec-tag{font-size:12.5px;color:var(--teal);font-weight:600;letter-spacing:1.5px;margin-bottom:10px}
   h2{font-size:27px;font-weight:700;letter-spacing:.2px}
-  h2 + p{color:var(--muted);margin-top:10px;max-width:640px}
+  h2 + p{color:var(--muted);margin-top:10px;max-width:620px}
+
   .video-sec{background:var(--bg2)}
   .video-sec video{width:100%;max-width:880px;display:block;margin:26px auto 0;border:1px solid var(--line);border-radius:12px;background:#000}
   .cap{text-align:center;color:var(--dim);font-size:12.5px;margin-top:12px}
+
   .feats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:34px}
   .feat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px 20px}
   .feat h3{font-size:15px;margin-bottom:8px;display:flex;align-items:center;gap:9px}
   .feat h3 svg{flex:none;opacity:.9}
   .feat p{color:var(--muted);font-size:13px;line-height:1.65}
+
   .flow{display:grid;grid-template-columns:1fr 44px 1fr 44px 1fr;align-items:center;margin-top:36px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:26px 22px}
   .node{text-align:center}
   .node b{display:block;font-size:14px;margin-bottom:5px}
@@ -104,21 +113,25 @@
   .node .tag{display:inline-block;background:rgba(45,212,191,.1);color:var(--teal);border:1px solid rgba(45,212,191,.3);font-size:11px;border-radius:999px;padding:2px 10px;margin-top:8px}
   .arr{text-align:center;color:var(--teal);font-size:18px}
   .foot-note{margin-top:18px;color:var(--dim);font-size:13px}
+
+  .arch{margin-top:34px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .arch img{width:100%;display:block}
   .shots{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:34px}
   .shot{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .shot img{width:100%;display:block;border-bottom:1px solid var(--line)}
   .shot figcaption{padding:12px 16px;color:var(--dim);font-size:12.5px}
-  .arch{margin-top:34px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
-  .arch img{width:100%;display:block}
+
   .start-sec{background:var(--bg2)}
   .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:34px;counter-reset:st}
   .step{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;position:relative}
   .step::before{counter-increment:st;content:'0' counter(st);position:absolute;top:16px;right:18px;font-size:13px;color:var(--teal);font-weight:700}
   .step h3{font-size:14.5px;margin-bottom:10px}
   .step code{display:block;background:#0A0E16;border:1px solid var(--line);border-radius:7px;padding:10px 12px;font-size:12.5px;color:var(--teal);margin-top:8px;overflow-x:auto;white-space:nowrap}
+
   footer{border-top:1px solid var(--line);padding:34px 0 44px}
   footer .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap;color:var(--dim);font-size:13px}
   footer .r{margin-left:auto;display:flex;gap:16px}
+
   @media(max-width:860px){
     .nav .wrap{flex-wrap:wrap;height:auto;padding:10px 20px;gap:12px}
     .nav .brand{width:100%}
@@ -138,39 +151,40 @@
 
 <header class="nav">
   <div class="wrap">
-    <div class="brand">TokenLens<small>AI Token &amp; Cost Meter</small></div>
-    <a class="lnk" href="#video">Demo</a>
-    <a class="lnk" href="#features">Why</a>
-    <a class="lnk" href="#shots">Screenshots</a>
-    <a class="lnk" href="#start">Quick start</a>
-    <a class="lnk" href="zh/">中文</a>
-    <a class="lnk" href="ja/">日本語</a>
-    <a class="lnk" href="https://github.com/x33834/tokenlens/releases/latest" style="color:var(--teal);font-weight:600">⬇ Download</a>
+    <div class="brand">TokenLens<small>AI Token 用量监控</small></div>
+    <a class="lnk" href="#video">演示</a>
+    <a class="lnk" href="#features">特性</a>
+    <a class="lnk" href="#arch">架构</a>
+    <a class="lnk" href="#shots">截图</a>
+    <a class="lnk" href="#start">快速开始</a>
+    <a class="lnk" href="../">English</a>
+    <a class="lnk" href="../ja/">日本語</a>
+    <a class="lnk" href="https://github.com/x33834/tokenlens/releases/latest" style="color:var(--teal);font-weight:600">⬇ 下载</a>
     <a class="lnk" href="https://github.com/x33834/tokenlens/stargazers" target="_blank" rel="noopener">★ Star</a>
   </div>
 </header>
 
 <section class="hero">
   <div class="wrap">
-    <div class="kicker">Zero intrusion · Local-first · No cloud, no account</div>
-    <h1>Every AI call, metered — <em>tokens and spend</em> in a ledger that stays on your machine</h1>
-    <p class="lead">TokenLens is a local transparent proxy. Change one line of <code>base_url</code> and it records tokens, cost and latency for every call — with a spend-ledger dashboard and hard budget enforcement. It never touches your business code, and never touches your API keys.</p>
-    <div class="cmd"><span class="c1">$</span><span>pip install . &amp;&amp; python -m tokenlens start</span></div>
+    <div class="kicker">零侵入 · 数据不出本机 · 零云服务</div>
+    <h1>把每次 AI 调用的 <em>token 与花销</em>，记成一本本地账本</h1>
+    <p class="lead">TokenLens 是一个本地透明代理：改一行 <code>base_url</code>，即可记录每次调用的 token 数、成本、延迟，配上「花销账本」仪表盘与预算硬拦截。不碰业务代码，不碰你的 API Key。</p>
+    <div class="cmd"><span class="c1">$</span><span>pip install . && python -m tokenlens start</span></div>
     <div class="btns">
-      <a class="btn solid" href="https://github.com/x33834/tokenlens/releases/latest">⬇ Download for Windows</a>
-      <a class="btn ghost" href="#video">Watch the demo</a>
-      <a class="btn ghost" href="#start">3-step setup</a>
+      <a class="btn solid" href="https://github.com/x33834/tokenlens/releases/latest">⬇ 下载 Windows 版</a>
+      <a class="btn ghost" href="#video">看演示视频</a>
+      <a class="btn ghost" href="#start">3 步接入</a>
     </div>
     <div class="quick">
-      <b>Works with:</b>
-      <code>OpenAI</code><code>DeepSeek</code><code>Qwen</code><code>Kimi</code><code>Doubao</code><code>Claude</code><code>GLM</code><code>Ollama</code>
+      <b>兼容上游：</b>
+      <code>OpenAI</code><code>DeepSeek</code><code>Qwen</code><code>Kimi</code><code>Doubao</code><code>Claude</code><code>GLM</code>
     </div>
   </div>
 </section>
 
 <div style="background:rgba(45,212,191,.06);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
   <div class="wrap" style="padding:14px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--muted)">
-    <span>TokenLens saves you money? A <b style="color:var(--teal)">★ star</b> helps other people find it:</span>
+    <span>TokenLens 帮你省了钱？一个 <b style="color:var(--teal)">★ Star</b> 能让更多需要的人搜到它：</span>
     <a href="https://github.com/x33834/tokenlens" target="_blank" rel="noopener">github.com/x33834/tokenlens</a>
   </div>
 </div>
@@ -178,42 +192,42 @@
 <section class="video-sec" id="video">
   <div class="wrap">
     <div class="sec-tag">DEMO</div>
-    <h2>See it work in 22 seconds</h2>
-    <p>Real screen capture: skeleton loading, animated KPI counters, chart dimension switching, row expansion, settings drawer and the alert timeline.</p>
-    <video src="media/tokenlens-promo.mp4" controls muted loop playsinline poster="media/desktop.png" preload="metadata"></video>
-    <p class="cap">1440×900 desktop capture · 22s</p>
+    <h2>22 秒看它怎么用</h2>
+    <p>真实界面录制：骨架屏加载、KPI 数字滚动、图表维度切换、明细展开、设置抽屉与告警时间轴。</p>
+    <video src="../media/tokenlens-promo.mp4" controls autoplay muted loop playsinline poster="../media/desktop.png" preload="metadata"></video>
+    <p class="cap">1440×900 桌面端操作实录 · 完整演示 22s</p>
   </div>
 </section>
 
 <section id="features">
   <div class="wrap">
     <div class="sec-tag">WHY</div>
-    <h2>Why TokenLens</h2>
-    <p>A lightweight local gateway for individuals and small teams — installed in minutes, nothing to subscribe to.</p>
+    <h2>为什么用它</h2>
+    <p>面向个人与中小团队的轻量本地网关——不重复造轮子，装完即用。</p>
     <div class="feats">
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M3 8l7-4 7 4-7 4z"/><path d="M3 8v8l7 4 7-4V8"/><path d="M10 12l7-4"/></svg>Zero-intrusion proxy</h3>
-        <p>One line of base_url. SSE streams are forwarded chunk-by-chunk while usage is parsed, with per-alias multi-provider routing on one port.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M3 8l7-4 7 4-7 4z"/><path d="M3 8v8l7 4 7-4V8"/><path d="M10 12l7-4"/></svg>零侵入透明代理</h3>
+        <p>只改一行 base_url 即接入，SSE 流式逐 chunk 转发并解析 usage，支持多厂商路径别名路由。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>Local-first by design</h3>
-        <p>Only metadata is stored (model, tokens, cost, latency) — never prompts or responses. API keys are reduced to a 12-char fingerprint. One SQLite file.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>数据不出本机</h3>
+        <p>只记元数据（模型、token、成本、延迟），不记 prompt / 响应内容；API Key 仅存 12 位指纹，单机 SQLite。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M3 11V4a1 1 0 011-1h7l10 10-7 7z"/><circle cx="8" cy="8" r="1.5"/></svg>Spend-ledger dashboard</h3>
-        <p>Money first: today / monthly spend, budget bars, cost breakdown by model / project / provider, sortable call detail, CSV &amp; JSONL export.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M3 11V4a1 1 0 011-1h7l10 10-7 7z"/><circle cx="8" cy="8" r="1.5"/></svg>花销账本仪表盘</h3>
+        <p>钱为主线：今日 / 本月花费、预算进度条、按模型 / 项目 / 厂商的成本构成、可排序明细、导出 CSV。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Hard budget enforcement</h3>
-        <p>Over-budget requests are rejected with 402 before they reach the provider. 80% threshold alerts push to DingTalk / WeCom / Feishu.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>预算硬拦截</h3>
+        <p>超限请求直接 402 拒绝、不再转发上游；80% 阈值告警 + 钉钉 / 企业微信 / 飞书 Webhook 推送。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M4 8h16l-4-4M20 16H4l4 4"/></svg>Metering you can audit</h3>
-        <p>Prefers the upstream's own usage, falls back to tiktoken, then to heuristics. Price table syncs from LiteLLM (2,000+ models) with manual overrides.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M4 8h16l-4-4M20 16H4l4 4"/></svg>精确计量</h3>
+        <p>优先用上游 usage 精确值，退化到 tiktoken 再退化为启发式估算；价格表同步自 LiteLLM（2000+ 模型）并内置国内模型兜底。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 20v-6M12 10V4M6 20v-4M6 12V4M18 20v-8M18 8V4"/></svg>Light and boring (in a good way)</h3>
-        <p>Single process, pure Python, zero external services. The dashboard even works offline with built-in demo data. 137 tests across three suites.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 20v-6M12 10V4M6 20v-4M6 12V4M18 20v-8M18 8V4"/></svg>轻量开箱即用</h3>
+        <p>单进程、零外部服务、纯 Python；离线也能打开仪表盘看内嵌演示数据；34 项单元 + 38 项端到端测试护航。</p>
       </div>
     </div>
   </div>
@@ -222,55 +236,55 @@
 <section class="video-sec" id="how">
   <div class="wrap">
     <div class="sec-tag">HOW</div>
-    <h2>How it works</h2>
+    <h2>工作原理</h2>
     <div class="flow">
-      <div class="node"><b>Your app</b><span>one base_url change</span></div>
+      <div class="node"><b>你的应用</b><span>改一行 base_url</span></div>
       <div class="arr">→</div>
-      <div class="node"><b>TokenLens proxy</b><span>127.0.0.1:8787</span><span class="tag">meter + cost</span></div>
+      <div class="node"><b>TokenLens 代理</b><span>127.0.0.1:8787</span><span class="tag">计量 + 成本</span></div>
       <div class="arr">→</div>
-      <div class="node"><b>Upstream LLM</b><span>OpenAI / DeepSeek / Qwen…</span></div>
+      <div class="node"><b>上游 LLM</b><span>OpenAI / DeepSeek / Qwen…</span></div>
     </div>
-    <p class="foot-note">One port routes every provider by path alias (<code>/v1/deepseek/…</code>, <code>/v1/anthropic/…</code>). Tag business units with <code>X-TokenLens-Project</code>. Authorization headers are forwarded verbatim and never stored.</p>
-  </div>
-</section>
-
-<section id="shots">
-  <div class="wrap">
-    <div class="sec-tag">SCREENSHOTS</div>
-    <h2>Interface</h2>
-    <p>A dark "spend ledger" dashboard, responsive down to mobile.</p>
-    <div class="shots">
-      <figure class="shot"><img src="media/desktop.png" alt="Desktop dashboard" loading="lazy"><figcaption>Desktop: KPIs, budget bars, trend, cost breakdown, call detail</figcaption></figure>
-      <figure class="shot"><img src="media/mobile.png" alt="Mobile layout" loading="lazy"><figcaption>Mobile: two-column KPIs, no-wrapping segments</figcaption></figure>
-      <figure class="shot"><img src="media/drawer.png" alt="Settings drawer" loading="lazy"><figcaption>Settings drawer: budget, enforcement, FX rate, webhook, price overrides</figcaption></figure>
-      <figure class="shot"><img src="media/alerts.png" alt="Budget alert timeline" loading="lazy"><figcaption>Alerts: timeline view with over-budget markers</figcaption></figure>
-    </div>
+    <p class="foot-note">同一端口按路径别名路由多厂商（<code>/v1/deepseek/…</code>、<code>/v1/dashscope/…</code>、<code>/v1/anthropic/…</code>）；请求头 <code>X-TokenLens-Project</code> 打业务标签。Authorization 原样转发、绝不落库。</p>
   </div>
 </section>
 
 <section class="video-sec" id="arch">
   <div class="wrap">
     <div class="sec-tag">ARCHITECTURE</div>
-    <h2>What happens to one call</h2>
-    <div class="arch"><img src="media/architecture.svg" alt="TokenLens architecture: apps → proxy (metering, budget, ledger, dashboard) → upstream LLMs"></div>
+    <h2>一次调用发生了什么</h2>
+    <div class="arch"><img src="../media/architecture.svg" alt="TokenLens 架构：应用 → 代理（计量/预算/账本/仪表盘）→ 上游 LLM" loading="lazy"></div>
+  </div>
+</section>
+
+<section id="shots">
+  <div class="wrap">
+    <div class="sec-tag">SCREENSHOTS</div>
+    <h2>界面预览</h2>
+    <p>深色「花销账本」仪表盘，桌面与移动端自适应。</p>
+    <div class="shots">
+      <figure class="shot"><img src="../media/desktop.png" alt="桌面端完整仪表盘" loading="lazy"><figcaption>桌面端：KPI + 预算条 + 用量趋势 + 成本构成 + 调用明细</figcaption></figure>
+      <figure class="shot"><img src="../media/mobile.png" alt="移动端适配" loading="lazy"><figcaption>移动端：窄屏两列 KPI，分段不换行</figcaption></figure>
+      <figure class="shot"><img src="../media/drawer.png" alt="设置抽屉" loading="lazy"><figcaption>设置抽屉：预算、硬拦截、汇率、Webhook、价格覆盖一屏搞定</figcaption></figure>
+      <figure class="shot"><img src="../media/alerts.png" alt="预算告警时间轴" loading="lazy"><figcaption>预算告警：时间轴记录，超支红点标记</figcaption></figure>
+    </div>
   </div>
 </section>
 
 <section class="start-sec" id="start">
   <div class="wrap">
     <div class="sec-tag">START</div>
-    <h2>3-step setup</h2>
+    <h2>3 步接入</h2>
     <div class="steps">
       <div class="step">
-        <h3>Install &amp; run</h3>
+        <h3>安装并启动</h3>
         <code>pip install .<br>python -m tokenlens start</code>
       </div>
       <div class="step">
-        <h3>Point base_url here</h3>
+        <h3>改一行 base_url</h3>
         <code>export OPENAI_BASE_URL=<br>http://127.0.0.1:8787/v1</code>
       </div>
       <div class="step">
-        <h3>Open the dashboard</h3>
+        <h3>打开仪表盘</h3>
         <code>http://127.0.0.1:8787</code>
       </div>
     </div>
@@ -279,11 +293,11 @@
 
 <footer>
   <div class="wrap">
-    <span>TokenLens · MIT License · local-first</span>
+    <span>TokenLens · MIT License · 数据不出本机</span>
     <div class="r">
-      <a href="https://github.com/x33834/tokenlens" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://gitee.com/badhope/tokenlens" target="_blank" rel="noopener">Gitee</a>
       <a href="https://gitcode.com/badhope/tokenlens" target="_blank" rel="noopener">GitCode</a>
+      <a href="https://gitee.com/badhope/tokenlens" target="_blank" rel="noopener">Gitee</a>
+      <a href="https://github.com/X33834/tokenlens" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
 </footer>

@@ -3,16 +3,26 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://x33834.github.io/tokenlens/</loc>
-    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://x33834.github.io/tokenlens/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://x33834.github.io/tokenlens/en/"/>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://x33834.github.io/tokenlens/zh/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://x33834.github.io/tokenlens/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://x33834.github.io/tokenlens/ja/"/>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://x33834.github.io/tokenlens/en/</loc>
-    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://x33834.github.io/tokenlens/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://x33834.github.io/tokenlens/en/"/>
+    <loc>https://x33834.github.io/tokenlens/zh/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://x33834.github.io/tokenlens/zh/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://x33834.github.io/tokenlens/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://x33834.github.io/tokenlens/ja/"/>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://x33834.github.io/tokenlens/ja/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://x33834.github.io/tokenlens/zh/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://x33834.github.io/tokenlens/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://x33834.github.io/tokenlens/ja/"/>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
   </url>
 </urlset>

@@ -1,28 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TokenLens · AI Token &amp; Cost Meter — Local-first Transparent Proxy</title>
-<meta name="description" content="Change one base_url and every AI call gets metered — tokens, cost and latency, in a local spend ledger. Spend dashboard, hard budget enforcement, 37+ upstreams. Your data never leaves the machine. MIT licensed.">
-<meta name="keywords" content="AI token metering, API cost tracking, token usage monitor, OpenAI proxy, LLM gateway, budget enforcement, local-first, DeepSeek, Claude, Qwen, open source">
+<title>TokenLens · AIトークン&amp;コスト計測 — ローカルファーストの透過プロキシ</title>
+<meta name="description" content="base_urlを1行変えるだけで、すべてのAI呼び出しのトークン・コスト・レイテンシをローカルの台帳に記録。支出ダッシュボード、予算ハードブロック、37+の上流に対応。データは端末の外に出ません。MITライセンス。">
+<meta name="keywords" content="AI トークン計測, API コスト管理, トークン使用量, OpenAI プロキシ, LLM ゲートウェイ, 予算アラート, ローカルファースト, DeepSeek, Claude, Qwen, オープンソース">
 <meta name="author" content="badhope">
 <meta name="theme-color" content="#0B0F17">
-<link rel="canonical" href="https://x33834.github.io/tokenlens/en/">
+<link rel="canonical" href="https://x33834.github.io/tokenlens/ja/">
 <link rel="alternate" hreflang="zh-CN" href="https://x33834.github.io/tokenlens/">
-<link rel="alternate" hreflang="en" href="https://x33834.github.io/tokenlens/en/">
+<link rel="alternate" hreflang="en" href="https://x33834.github.io/tokenlens/">
 <link rel="alternate" hreflang="x-default" href="https://x33834.github.io/tokenlens/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="TokenLens">
-<meta property="og:title" content="TokenLens — meter every AI call, keep the ledger local">
-<meta property="og:description" content="One-line base_url change. Tokens, cost and latency per call, a spend-ledger dashboard and hard budget enforcement. Data never leaves your machine.">
-<meta property="og:url" content="https://x33834.github.io/tokenlens/en/">
+<meta property="og:title" content="TokenLens — すべてのAI呼び出しを計測し、台帳はローカルに">
+<meta property="og:description" content="base_urlを1行変えるだけ。呼び出しごとのトークン・コスト・レイテンシ、支出台帳ダッシュボード、予算ハードブロック。データは端末外に出ません。">
+<meta property="og:url" content="https://x33834.github.io/tokenlens/ja/">
 <meta property="og:image" content="https://x33834.github.io/tokenlens/media/brand-wide.png">
-<meta property="og:locale" content="en_US">
+<meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="zh_CN">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="TokenLens — AI token &amp; cost meter">
-<meta name="twitter:description" content="Local-first transparent proxy with a spend ledger and hard budget enforcement.">
+<meta name="twitter:title" content="TokenLens — AIトークン&amp;コスト計測">
+<meta name="twitter:description" content="ローカルファーストの透過プロキシ。支出台帳と予算ハードブロック。">
 <meta name="twitter:image" content="https://x33834.github.io/tokenlens/media/brand-wide.png">
 <script type="application/ld+json">
 {
@@ -42,7 +42,7 @@
   ]
 }
 </script>
-<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
   :root{
     --bg:#0B0F17; --bg2:#0F1622; --card:#121A28; --line:#1F2A3A;
@@ -120,6 +120,10 @@
   footer .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap;color:var(--dim);font-size:13px}
   footer .r{margin-left:auto;display:flex;gap:16px}
   @media(max-width:860px){
+    .nav .wrap{flex-wrap:wrap;height:auto;padding:10px 20px;gap:12px}
+    .nav .brand{width:100%}
+    .nav .brand small{display:none}
+    .nav a.lnk{margin-left:0;font-size:12.5px}
     h1{font-size:32px}
     .feats{grid-template-columns:1fr}
     .steps{grid-template-columns:1fr}
@@ -134,71 +138,82 @@
 
 <header class="nav">
   <div class="wrap">
-    <div class="brand">TokenLens<small>AI Token &amp; Cost Meter</small></div>
-    <a class="lnk" href="#video">Demo</a>
-    <a class="lnk" href="#features">Why</a>
-    <a class="lnk" href="#shots">Screenshots</a>
-    <a class="lnk" href="#start">Quick start</a>
-    <a class="lnk" href="../">中文</a>
+    <div class="brand">TokenLens<small>AIトークン&amp;コスト計測</small></div>
+    <a class="lnk" href="#video">デモ</a>
+    <a class="lnk" href="#features">特徴</a>
+    <a class="lnk" href="#shots">スクリーンショット</a>
+    <a class="lnk" href="#start">クイックスタート</a>
+    <a class="lnk" href="../">English</a>
+    <a class="lnk" href="zh/">中文</a>
+    <a class="lnk" href="https://github.com/x33834/tokenlens/releases/latest" style="color:var(--teal);font-weight:600">⬇ ダウンロード</a>
+    <a class="lnk" href="https://github.com/x33834/tokenlens/stargazers" target="_blank" rel="noopener">★ Star</a>
   </div>
 </header>
 
 <section class="hero">
   <div class="wrap">
-    <div class="kicker">Zero intrusion · Local-first · No cloud, no account</div>
-    <h1>Every AI call, metered — <em>tokens and spend</em> in a ledger that stays on your machine</h1>
-    <p class="lead">TokenLens is a local transparent proxy. Change one line of <code>base_url</code> and it records tokens, cost and latency for every call — with a spend-ledger dashboard and hard budget enforcement. It never touches your business code, and never touches your API keys.</p>
+    <div class="kicker">ゼロ侵入 · ローカルファースト · クラウド不要</div>
+    <h1>すべての AI 呼び出しを計測 — <em>トークンとコスト</em>をローカルの台帳に</h1>
+    <p class="lead">TokenLens はローカルで動く透過プロキシです。<code>base_url</code> を1行変えるだけで、すべての呼び出しのトークン数・コスト・レイテンシを記録し、支出台帳ダッシュボードと予算ハードブロックを提供します。業務コードにも API キーにも触れません。</p>
     <div class="cmd"><span class="c1">$</span><span>pip install . &amp;&amp; python -m tokenlens start</span></div>
     <div class="btns">
-      <a class="btn solid" href="#video">Watch the demo</a>
-      <a class="btn ghost" href="#start">3-step setup</a>
+      <a class="btn solid" href="https://github.com/x33834/tokenlens/releases/latest">⬇ Windows 版をダウンロード</a>
+      <a class="btn ghost" href="#video">デモを見る</a>
+      <a class="btn ghost" href="#start">3ステップで導入</a>
     </div>
     <div class="quick">
-      <b>Works with:</b>
+      <b>対応上流:</b>
       <code>OpenAI</code><code>DeepSeek</code><code>Qwen</code><code>Kimi</code><code>Doubao</code><code>Claude</code><code>GLM</code><code>Ollama</code>
     </div>
   </div>
 </section>
 
+<div style="background:rgba(45,212,191,.06);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap" style="padding:14px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--muted)">
+    <span>TokenLens がお役に立ったら、 <b style="color:var(--teal)">★ スター</b>が他の人の発見につながります：</span>
+    <a href="https://github.com/x33834/tokenlens" target="_blank" rel="noopener">github.com/x33834/tokenlens</a>
+  </div>
+</div>
+
 <section class="video-sec" id="video">
   <div class="wrap">
     <div class="sec-tag">DEMO</div>
-    <h2>See it work in 22 seconds</h2>
-    <p>Real screen capture: skeleton loading, animated KPI counters, chart dimension switching, row expansion, settings drawer and the alert timeline.</p>
-    <video src="../media/tokenlens-promo.mp4" controls muted loop playsinline poster="../media/desktop.png" preload="metadata"></video>
-    <p class="cap">1440×900 desktop capture · 22s</p>
+    <h2>22秒で動きが分かる</h2>
+    <p>実画面の録画：スケルトン読み込み、KPI カウントアニメーション、グラフ切り替え、行の展開、設定ドロワー、アラートタイムライン。</p>
+    <video src="media/tokenlens-promo.mp4" controls muted loop playsinline poster="media/desktop.png" preload="metadata"></video>
+    <p class="cap">1440×900 デスクトップ録画 · 22秒</p>
   </div>
 </section>
 
 <section id="features">
   <div class="wrap">
     <div class="sec-tag">WHY</div>
-    <h2>Why TokenLens</h2>
-    <p>A lightweight local gateway for individuals and small teams — installed in minutes, nothing to subscribe to.</p>
+    <h2>TokenLens が選ばれる理由</h2>
+    <p>個人と小規模チームのための軽量ローカルゲートウェイ — 数分で導入でき、サブスクリプションは不要です。</p>
     <div class="feats">
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M3 8l7-4 7 4-7 4z"/><path d="M3 8v8l7 4 7-4V8"/><path d="M10 12l7-4"/></svg>Zero-intrusion proxy</h3>
-        <p>One line of base_url. SSE streams are forwarded chunk-by-chunk while usage is parsed, with per-alias multi-provider routing on one port.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M3 8l7-4 7 4-7 4z"/><path d="M3 8v8l7 4 7-4V8"/><path d="M10 12l7-4"/></svg>ゼロ侵入プロキシ</h3>
+        <p>base_url を1行変えるだけ。SSE をチャンク単位で転送しながら usage を解析し、1ポートで複数プロバイダをエイリアスルーティング。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>Local-first by design</h3>
-        <p>Only metadata is stored (model, tokens, cost, latency) — never prompts or responses. API keys are reduced to a 12-char fingerprint. One SQLite file.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>設計からローカルファースト</h3>
+        <p>保存するのはメタデータのみ。プロンプトとレスポンスは保存せず、API キーは12文字のフィンガープリントだけ。SQLite1ファイル。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M3 11V4a1 1 0 011-1h7l10 10-7 7z"/><circle cx="8" cy="8" r="1.5"/></svg>Spend-ledger dashboard</h3>
-        <p>Money first: today / monthly spend, budget bars, cost breakdown by model / project / provider, sortable call detail, CSV &amp; JSONL export.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M3 11V4a1 1 0 011-1h7l10 10-7 7z"/><circle cx="8" cy="8" r="1.5"/></svg>支出台帳ダッシュボード</h3>
+        <p>お金を主役に：今日/今月の支出、予算バー、モデル/プロジェクト/プロバイダ別の内訳、ソート可能な明細、CSV/JSONL 出力。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Hard budget enforcement</h3>
-        <p>Over-budget requests are rejected with 402 before they reach the provider. 80% threshold alerts push to DingTalk / WeCom / Feishu.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>予算ハードブロック</h3>
+        <p>予算超過のリクエストはプロバイダに届く前に 402 で拒否。80%しきい値のアラートは DingTalk / WeCom / Feishu へ。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M4 8h16l-4-4M20 16H4l4 4"/></svg>Metering you can audit</h3>
-        <p>Prefers the upstream's own usage, falls back to tiktoken, then to heuristics. Price table syncs from LiteLLM (2,000+ models) with manual overrides.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M4 8h16l-4-4M20 16H4l4 4"/></svg>検証可能な計測</h3>
+        <p>上流の usage を最優先し、tiktoken、ヒューリスティックへ段階フォールバック。価格テーブルは LiteLLM（2,000+ モデル）から同期、手動上書き可。</p>
       </div>
       <div class="feat">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 20v-6M12 10V4M6 20v-4M6 12V4M18 20v-8M18 8V4"/></svg>Light and boring (in a good way)</h3>
-        <p>Single process, pure Python, zero external services. The dashboard even works offline with built-in demo data. 137 tests across three suites.</p>
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 20v-6M12 10V4M6 20v-4M6 12V4M18 20v-8M18 8V4"/></svg>軽量で堅実</h3>
+        <p>単一プロセス、純 Python、外部サービス不要。内蔵デモデータでオフラインでも動作。3スイート137テスト。</p>
       </div>
     </div>
   </div>
@@ -207,28 +222,28 @@
 <section class="video-sec" id="how">
   <div class="wrap">
     <div class="sec-tag">HOW</div>
-    <h2>How it works</h2>
+    <h2>動作の仕組み</h2>
     <div class="flow">
-      <div class="node"><b>Your app</b><span>one base_url change</span></div>
+      <div class="node"><b>あなたのアプリ</b><span>base_url を1行</span></div>
       <div class="arr">→</div>
-      <div class="node"><b>TokenLens proxy</b><span>127.0.0.1:8787</span><span class="tag">meter + cost</span></div>
+      <div class="node"><b>TokenLens プロキシ</b><span>127.0.0.1:8787</span><span class="tag">計測 + コスト</span></div>
       <div class="arr">→</div>
-      <div class="node"><b>Upstream LLM</b><span>OpenAI / DeepSeek / Qwen…</span></div>
+      <div class="node"><b>上流 LLM</b><span>OpenAI / DeepSeek / Qwen…</span></div>
     </div>
-    <p class="foot-note">One port routes every provider by path alias (<code>/v1/deepseek/…</code>, <code>/v1/anthropic/…</code>). Tag business units with <code>X-TokenLens-Project</code>. Authorization headers are forwarded verbatim and never stored.</p>
+    <p class="foot-note">1つのポートがパスエイリアスで全プロバイダへルーティング。<code>X-TokenLens-Project</code> で部門タグを付けられます。Authorization ヘッダはそのまま転送され、保存されません。</p>
   </div>
 </section>
 
 <section id="shots">
   <div class="wrap">
     <div class="sec-tag">SCREENSHOTS</div>
-    <h2>Interface</h2>
-    <p>A dark "spend ledger" dashboard, responsive down to mobile.</p>
+    <h2>画面プレビュー</h2>
+    <p>ダークテーマの「支出台帳」ダッシュボード。モバイルまでレスポンシブ。</p>
     <div class="shots">
-      <figure class="shot"><img src="../media/desktop.png" alt="Desktop dashboard" loading="lazy"><figcaption>Desktop: KPIs, budget bars, trend, cost breakdown, call detail</figcaption></figure>
-      <figure class="shot"><img src="../media/mobile.png" alt="Mobile layout" loading="lazy"><figcaption>Mobile: two-column KPIs, no-wrapping segments</figcaption></figure>
-      <figure class="shot"><img src="../media/drawer.png" alt="Settings drawer" loading="lazy"><figcaption>Settings drawer: budget, enforcement, FX rate, webhook, price overrides</figcaption></figure>
-      <figure class="shot"><img src="../media/alerts.png" alt="Budget alert timeline" loading="lazy"><figcaption>Alerts: timeline view with over-budget markers</figcaption></figure>
+      <figure class="shot"><img src="media/desktop.png" alt="Desktop dashboard" loading="lazy"><figcaption>デスクトップ：KPI・予算バー・トレンド・コスト内訳・明細</figcaption></figure>
+      <figure class="shot"><img src="media/mobile.png" alt="Mobile layout" loading="lazy"><figcaption>モバイル：2列 KPI、折り返しなしのセグメント</figcaption></figure>
+      <figure class="shot"><img src="media/drawer.png" alt="Settings drawer" loading="lazy"><figcaption>設定ドロワー：予算・ブロック・レート・Webhook・価格上書き</figcaption></figure>
+      <figure class="shot"><img src="media/alerts.png" alt="Budget alert timeline" loading="lazy"><figcaption>アラート：予算超過マーク付きタイムライン</figcaption></figure>
     </div>
   </div>
 </section>
@@ -236,26 +251,26 @@
 <section class="video-sec" id="arch">
   <div class="wrap">
     <div class="sec-tag">ARCHITECTURE</div>
-    <h2>What happens to one call</h2>
-    <div class="arch"><img src="../media/architecture.svg" alt="TokenLens architecture: apps → proxy (metering, budget, ledger, dashboard) → upstream LLMs"></div>
+    <h2>1回の呼び出しで何が起きるか</h2>
+    <div class="arch"><img src="media/architecture.svg" alt="TokenLens architecture: apps → proxy (metering, budget, ledger, dashboard) → upstream LLMs"></div>
   </div>
 </section>
 
 <section class="start-sec" id="start">
   <div class="wrap">
     <div class="sec-tag">START</div>
-    <h2>3-step setup</h2>
+    <h2>3ステップで導入</h2>
     <div class="steps">
       <div class="step">
-        <h3>Install &amp; run</h3>
+        <h3>インストールして起動</h3>
         <code>pip install .<br>python -m tokenlens start</code>
       </div>
       <div class="step">
-        <h3>Point base_url here</h3>
+        <h3>base_url を向ける</h3>
         <code>export OPENAI_BASE_URL=<br>http://127.0.0.1:8787/v1</code>
       </div>
       <div class="step">
-        <h3>Open the dashboard</h3>
+        <h3>ダッシュボードを開く</h3>
         <code>http://127.0.0.1:8787</code>
       </div>
     </div>
@@ -264,7 +279,7 @@
 
 <footer>
   <div class="wrap">
-    <span>TokenLens · MIT License · local-first</span>
+    <span>TokenLens · MIT License · ローカルファースト</span>
     <div class="r">
       <a href="https://github.com/x33834/tokenlens" target="_blank" rel="noopener">GitHub</a>
       <a href="https://gitee.com/badhope/tokenlens" target="_blank" rel="noopener">Gitee</a>
