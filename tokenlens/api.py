@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hmac
 import io
 import json
 import time
@@ -11,57 +12,73 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from starlette.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .meter import CostCalculator, Meter, day_bounds, month_bounds
 from .pricing import PricingTable
 from .store import Store
 
+# 时间范围上限：365 天（8760 小时），配合 _fill_gaps 的桶数硬上限防内存放大
+MAX_RANGE_HOURS = 8760
+MAX_RANGE_DAYS = 365
+
 
 def parse_range(rng: str) -> tuple:
+    """解析时间范围；非法值抛 ValueError（API 层转 400，CLI 层友好提示）。"""
     now = time.time()
     if rng == "today":
         return day_bounds(now)
     if rng == "yesterday":
         s, e = day_bounds(now)
         return s - 86400, s
+    if rng == "month":
+        return month_bounds(now)
+    if rng == "all":
+        return None, None
     if rng.endswith("h"):
         try:
             hours = int(rng[:-1])
         except ValueError:
-            raise HTTPException(400, f"invalid range: {rng}")
+            raise ValueError(f"invalid range: {rng}")
+        if hours < 1 or hours > MAX_RANGE_HOURS:
+            raise ValueError(f"range 超界（1h ~ {MAX_RANGE_HOURS}h）: {rng}")
         return now - hours * 3600, now
     if rng.endswith("d"):
         try:
             days = int(rng[:-1])
         except ValueError:
-            raise HTTPException(400, f"invalid range: {rng}")
+            raise ValueError(f"invalid range: {rng}")
+        if days < 1 or days > MAX_RANGE_DAYS:
+            raise ValueError(f"range 超界（1d ~ {MAX_RANGE_DAYS}d）: {rng}")
         return now - days * 86400, now
-    if rng == "month":
-        return month_bounds(now)
-    if rng == "all":
-        return None, None
-    return day_bounds(now)
+    raise ValueError(f"invalid range: {rng}（可用: today/yesterday/month/all/Nh/Nd）")
+
+
+def _range_or_400(rng: str) -> tuple:
+    try:
+        return parse_range(rng)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 
 class BudgetIn(BaseModel):
     scope: str
-    limit: float
+    limit: float = Field(ge=0)
 
 
 class ConfigPatch(BaseModel):
-    budget_daily: Optional[float] = None
-    budget_monthly: Optional[float] = None
-    usd_cny_rate: Optional[float] = None
+    budget_daily: Optional[float] = Field(None, ge=0)
+    budget_monthly: Optional[float] = Field(None, ge=0)
+    usd_cny_rate: Optional[float] = Field(None, ge=0)
     webhook_url: Optional[str] = None
     webhook_type: Optional[str] = None
     enforce_budget: Optional[bool] = None
-    enforce_budget_ratio: Optional[float] = None
+    enforce_budget_ratio: Optional[float] = Field(None, gt=0, le=1)
     default_upstream: Optional[str] = None
     upstreams: Optional[Dict[str, str]] = None
     pricing_overrides: Optional[Dict[str, Dict[str, float]]] = None
     allow_private_upstreams: Optional[bool] = None
-    retention_days: Optional[int] = None
+    retention_days: Optional[int] = Field(None, ge=0)
     key_aliases: Optional[Dict[str, str]] = None
 
 
@@ -73,6 +90,9 @@ def _fill_gaps(rows, bucket: str, start, end, rng: str):
         return rows
     step = 3600 if bucket == "hour" else 86400
     fmt = "%Y-%m-%d %H:00" if bucket == "hour" else "%Y-%m-%d"
+    # 桶数硬上限：超过说明范围异常放大，返回原始聚合（不补桶），防内存炸弹
+    if (end - start) // step + 2 > 10000:
+        return rows
     got = {r["bucket"]: r for r in rows}
     filled = []
     t = start - (start % step)
@@ -96,22 +116,27 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
         if not tok:
             return None
         auth = request.headers.get("authorization", "")
-        if auth.lower().startswith("bearer ") and auth[7:].strip() == tok:
+        if auth.lower().startswith("bearer ") and hmac.compare_digest(auth[7:].strip(), tok):
             return None
-        if request.query_params.get("token") == tok:
+        qtok = request.query_params.get("token")
+        if qtok is not None and hmac.compare_digest(qtok, tok):
             return None
         raise HTTPException(401, "需要访问令牌（config.json 的 dashboard_token）")
 
     def require_write(request: Request):
-        """写操作保护：对外监听且未设置访问令牌时，禁止修改类操作。
-
-        本地默认（127.0.0.1）保持开箱即用；一旦监听非回环地址，
-        未配 token 的部署不允许任何人改配置/预算/清数据。
+        """写操作保护（两层）：
+        1. 未设 token 时必须携带自定义头 x-tokenlens-write: 1 —— 浏览器跨域
+           简单请求带不了自定义头，从机制上挡住「任意网页 fetch 清库」的 CSRF；
+        2. 服务对外监听且未设 token 时直接禁止写（部署后必须先配 token）。
         """
-        if not cfg.dashboard_token and cfg.host not in ("127.0.0.1", "localhost", "::1", "[::1]"):
-            raise HTTPException(
-                401, "服务对外监听但未设置 dashboard_token，已禁止修改类操作；"
-                     "请在 config.json 中配置访问令牌后重试")
+        if not cfg.dashboard_token:
+            if request.headers.get("x-tokenlens-write") != "1":
+                raise HTTPException(
+                    403, "写操作需要自定义头 x-tokenlens-write: 1（防网页 CSRF）")
+            if cfg.host not in ("127.0.0.1", "localhost", "::1", "[::1]"):
+                raise HTTPException(
+                    401, "服务对外监听但未设置 dashboard_token，已禁止修改类操作；"
+                         "请在 config.json 中配置访问令牌后重试")
         return None
 
     router = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
@@ -120,7 +145,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def stats(rng: str = "today", project: Optional[str] = None,
               model: Optional[str] = None, provider: Optional[str] = None,
               session: Optional[str] = None):
-        s, e = parse_range(rng)
+        s, e = _range_or_400(rng)
         data = store.summary(s, e, project, model, provider, session)
         data["range"] = rng
         data["generated_at"] = datetime.now().isoformat(timespec="seconds")
@@ -130,7 +155,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def timeseries(rng: str = "today", bucket: str = "hour", project: Optional[str] = None,
                    model: Optional[str] = None, provider: Optional[str] = None,
                    session: Optional[str] = None):
-        s, e = parse_range(rng)
+        s, e = _range_or_400(rng)
         if rng in ("30d", "90d", "all", "month"):
             bucket = "day"
         rows = store.timeseries(bucket, s, e, project, model, provider, session)
@@ -142,7 +167,8 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
                   session: Optional[str] = None):
         if field not in {"model", "project", "provider", "endpoint", "day", "key_hash"}:
             raise HTTPException(400, "unsupported field")
-        s, e = parse_range(rng)
+        limit = min(max(limit, 1), 100)  # SQLite 负数 LIMIT = 无限制，必须钳位
+        s, e = _range_or_400(rng)
         rows = store.breakdown(field, s, e, project, model, provider, limit, session)
         if field == "key_hash":
             # 密钥指纹 → 应用别名，让「谁在花钱」直接显示应用名
@@ -154,8 +180,8 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def recent(limit: int = 50, rng: str = "today", project: Optional[str] = None,
                model: Optional[str] = None, provider: Optional[str] = None,
                session: Optional[str] = None):
-        s, e = parse_range(rng)
-        rows = store.recent(min(limit, 500), s, e, project, model, provider, session)
+        s, e = _range_or_400(rng)
+        rows = store.recent(min(max(limit, 1), 500), s, e, project, model, provider, session)
         aliases = cfg.key_aliases or {}
         return [{**r, "app": aliases.get(r.get("key_hash") or "", "")} for r in rows]
 
@@ -190,8 +216,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     @router.get("/live")
     def live(window: int = 60):
         """最近 N 秒的速率，用于仪表盘顶部的实时感。"""
-        if window <= 0:
-            window = 1  # 客户端可控参数，非法值不抛 500
+        window = min(max(window, 1), 86400)  # 客户端可控，钳位防全表扫描
         now = time.time()
         st = store.live_stats(now - window)
         n = st["requests"]
@@ -210,12 +235,14 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
 
     # ---------- 设置 ----------
     def _public_config(cfg) -> Dict[str, Any]:
-        """对外可见的配置（不暴露 db_path / token 等敏感项）。"""
+        """对外可见的配置（不暴露 db_path / token 等敏感项）。
+        webhook_url 常含机器人 access_token 凭据：对外监听且未鉴权时置空。"""
+        mask_webhook = not cfg.dashboard_token and cfg.host not in ("127.0.0.1", "localhost", "::1")
         return {
             "budget_daily": cfg.budget_daily,
             "budget_monthly": cfg.budget_monthly,
             "usd_cny_rate": cfg.usd_cny_rate,
-            "webhook_url": cfg.webhook_url,
+            "webhook_url": None if mask_webhook else cfg.webhook_url,
             "webhook_type": cfg.webhook_type,
             "enforce_budget": cfg.enforce_budget,
             "enforce_budget_ratio": cfg.enforce_budget_ratio,
@@ -249,7 +276,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def export(rng: str = "30d", project: Optional[str] = None,
                model: Optional[str] = None, provider: Optional[str] = None,
                session: Optional[str] = None):
-        s, e = parse_range(rng)
+        s, e = _range_or_400(rng)
         first_page = store.export_page(1, 0, s, e, project, model, provider, session)
         if not first_page:
             raise HTTPException(404, "所选范围暂无数据可导出")
@@ -294,7 +321,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
                      model: Optional[str] = None, provider: Optional[str] = None,
                      session: Optional[str] = None):
         """JSONL 导出：每行一个 JSON 对象，天然规避 CSV 公式注入，适合程序化消费。"""
-        s, e = parse_range(rng)
+        s, e = _range_or_400(rng)
         if not store.export_page(1, 0, s, e, project, model, provider, session):
             raise HTTPException(404, "所选范围暂无数据可导出")
 
@@ -317,7 +344,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     # ---------- 告警历史 ----------
     @router.get("/alerts")
     def alerts(limit: int = 50):
-        return store.alerts_list(min(limit, 200))
+        return store.alerts_list(min(max(limit, 1), 200))
 
     # ---------- 数据管理 ----------
     @router.post("/reset", dependencies=[Depends(require_write)])

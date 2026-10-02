@@ -363,6 +363,12 @@ class Store:
             cur.execute("DELETE FROM alerts WHERE ts < ?", (cutoff,))
             return n
 
+    def last_ts(self) -> Optional[float]:
+        """最近一条记录的时间戳（doctor 自检用，避免外部触私有连接）。"""
+        with self._lock:
+            row = self._local.execute("SELECT MAX(ts) FROM requests").fetchone()
+            return row[0] if row and row[0] else None
+
     def count(self) -> int:
         with self._lock:
             row = self._local.execute("SELECT COUNT(*) AS c FROM requests").fetchone()

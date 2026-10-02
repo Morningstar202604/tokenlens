@@ -33,9 +33,11 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     meter = Meter(store, cfg, pricing)
 
     # 共享一个 httpx 连接池，避免每个请求重建连接（复用底层连接）
+    # follow_redirects 必须关闭：重定向由 proxy 逐跳校验后手动跟随，
+    # 否则公网上游可用 302 跳板绕过内网防护（SSRF）
     client = httpx.AsyncClient(
         timeout=httpx.Timeout(cfg.timeout, connect=10.0),
-        follow_redirects=True,
+        follow_redirects=False,
     )
 
     @asynccontextmanager
@@ -49,6 +51,22 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         version="1.2.1",
         lifespan=lifespan,
     )
+
+    # 回环部署时校验 Host：DNS rebinding 域名解析到 127.0.0.1 但带恶意 Host，
+    # 浏览器视为同源即可跨域读改仪表盘；对外监听（0.0.0.0）不做此限制
+    if cfg.host in ("127.0.0.1", "localhost", "::1"):
+        from fastapi.responses import JSONResponse
+
+        @app.middleware("http")
+        async def _host_guard(request, call_next):
+            hosthdr = (request.headers.get("host") or "").split(":")[0].strip("[]").lower()
+            if hosthdr and hosthdr not in ("127.0.0.1", "localhost", "::1"):
+                return JSONResponse(
+                    {"error": {"message": f"tokenlens: 非本机 Host 头（{hosthdr}）已拒绝，"
+                                           "防止 DNS rebinding",
+                               "type": "invalid_host"}},
+                    status_code=400)
+            return await call_next(request)
     app.state.cfg = cfg
     app.state.store = store
     app.state.meter = meter

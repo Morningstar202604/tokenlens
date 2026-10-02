@@ -103,6 +103,34 @@ def test_wire_preserves_existing_base():
           data.get("env", {}).get("ANTHROPIC_BASE_URL") == "https://k.example.com")
 
 
+def test_unwire_preserves_user_edits():
+    """P1 回归：wire 后用户又改了 settings.json，unwire 只还原接入键，不得整文件覆盖。"""
+    from tokenlens.onboard import wire, unwire
+    home = make_home(settings={"env": {"OTHER": "1"}})
+    cfg = Config()
+    wire("claude-code", cfg, home=home)
+    p = home / ".claude" / "settings.json"
+    # 模拟 wire 之后 Claude Code/用户又写入了新键
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["permissions"] = {"allow": ["Bash(ls:*)"]}
+    p.write_text(json.dumps(data), encoding="utf-8")
+    msg = unwire("claude-code", cfg, home=home)
+    after = json.loads(p.read_text(encoding="utf-8"))
+    check("unwire 后用户后续编辑保留", after.get("permissions") == {"allow": ["Bash(ls:*)"]},
+          msg[:60])
+    check("unwire 后接入键被还原移除", "ANTHROPIC_BASE_URL" not in (after.get("env") or {}))
+    check("unwire 后更早的既有键保留", after.get("env", {}).get("OTHER") == "1")
+    # 改端口后 unwire 也认得 wire 时的地址（marker）
+    home2 = make_home(settings={"env": {}})
+    wire("claude-code", cfg, home=home2)
+    cfg2 = Config()
+    cfg2.port = 9000
+    msg2 = unwire("claude-code", cfg2, home=home2)
+    after2 = json.loads((home2 / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    check("改端口后 unwire 仍可还原（marker 记录）",
+          "ANTHROPIC_BASE_URL" not in (after2.get("env") or {}), msg2[:60])
+
+
 def test_provider_domains():
     from tokenlens.meter import provider_from_url
     cases = {
@@ -150,7 +178,8 @@ def test_key_aliases():
           str((rc or [{}])[0].get("app")))
     cf = c.get("/api/config").json()
     check("config 暴露 key_aliases", cf.get("key_aliases") == {"abc123def456": "Claude Code"})
-    r2 = c.put("/api/config", json={"key_aliases": {"abc123def456": "我的别名"}})
+    r2 = c.put("/api/config", json={"key_aliases": {"abc123def456": "我的别名"}},
+               headers={"x-tokenlens-write": "1"})
     ok = r2.status_code == 200 and r2.json().get("key_aliases", {}).get("abc123def456") == "我的别名"
     check("PUT 更新别名并生效", ok, f"status={r2.status_code}")
 
@@ -165,6 +194,7 @@ def main():
     test_detect()
     test_wire_unwire()
     test_wire_preserves_existing_base()
+    test_unwire_preserves_user_edits()
     passed = sum(1 for _, ok, _ in CHECK if ok)
     print(f"\n{'='*52}\n结果: {passed}/{len(CHECK)} 通过")
     failed = [n for n, ok, _ in CHECK if not ok]

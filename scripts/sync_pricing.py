@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import urllib.request
+from pathlib import Path
 
 SOURCE = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 DEFAULT_OUT = "tokenlens/pricing_data.json"
@@ -23,7 +25,10 @@ TEMPLATE_MARKERS = ("*", "azure/", "bedrock/", "vertex_ai/", "bria/", "sagemaker
 def fetch() -> dict:
     print(f"下载 {SOURCE} ...")
     with urllib.request.urlopen(SOURCE, timeout=60) as r:
-        return json.loads(r.read().decode("utf-8"))
+        data = json.loads(r.read().decode("utf-8"))
+    if not isinstance(data, dict) or not data:
+        raise ValueError("LiteLLM 源返回了非字典/空结构，拒绝写入价格表")
+    return data
 
 
 def convert(data: dict) -> dict:
@@ -67,9 +72,14 @@ def main() -> None:
         "note": "单位 USD/1M tokens，由 LiteLLM model_prices_and_context_window.json 转换，可用 sync_pricing.py 重新同步",
         "models": table,
     }
-    with open(args.out, "w", encoding="utf-8") as f:
+    if len(table) < 100:
+        raise ValueError(f"换算后仅 {len(table)} 个模型，远低于正常规模，疑似源结构变化，拒绝写入")
+    out = Path(args.out)
+    tmp = out.with_suffix(out.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)
-    print(f"已写入 {args.out}: {len(table)} 个模型（原始 {len(raw)} 项）")
+    os.replace(tmp, out)
+    print(f"已写入 {out}: {len(table)} 个模型（原始 {len(raw)} 项）")
 
 
 if __name__ == "__main__":

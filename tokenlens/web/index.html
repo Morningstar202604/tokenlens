@@ -459,7 +459,7 @@ async function api(path, body, method){
   const opt = {headers:{'Accept':'application/json'}, cache:'no-store'};
   const tok = localStorage.getItem('tl_token');
   if(tok) opt.headers['Authorization'] = 'Bearer ' + tok;
-  if(body){ opt.method = method || 'POST'; opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+  if(body){ opt.method = method || 'POST'; opt.headers['Content-Type'] = 'application/json'; opt.headers['x-tokenlens-write'] = '1'; opt.body = JSON.stringify(body); }
   const r = await fetch(path, opt);
   if(r.status === 401 && !S._tokAsked){
     S._tokAsked = true;
@@ -479,7 +479,6 @@ function qs(extra){
 }
 
 async function loadAll(){
-  if(S.offline) return pickDemo();
   try{
     const [stats, ts, rank, recent, budget, filters, alerts] = await Promise.all([
       api('/api/stats?'+qs()), api('/api/timeseries?'+qs()),
@@ -488,11 +487,13 @@ async function loadAll(){
     ]);
     let live = {rpm:0,tokens:0};
     try{ live = await api('/api/live?window=60'); }catch(e){}
+    if(S.offline){ S.offline = false; document.body.classList.remove('is-demo'); toast('后端已恢复，已切回真实数据'); }
     return {stats, ts, rank, recent, budget, filters, alerts, live};
   }catch(e){
+    if(String(e.message||'').includes('401')) throw e;  // 需要令牌不是故障，别拿演示数据顶替
     const demo = pickDemo();
     if(!demo) throw e;
-    S.offline = true; document.body.classList.add('is-demo');
+    if(!S.offline){ S.offline = true; document.body.classList.add('is-demo'); toast('后端暂不可用，先展示演示数据，恢复后自动切回'); }
     return demo;
   }
 }
@@ -502,10 +503,14 @@ function pickDemo(){
   return DEMO_DATA[S.range] || DEMO_DATA['24h'] || null;
 }
 
-let __rank = [], __alerts = [], __ts = [];
+let __rank = [], __alerts = [], __ts = [], __seq = 0;
 async function refresh(){
-  $('btn-export').href = '/api/export?' + qs();
-  const d = await loadAll();
+  const seq = ++__seq;   // 竞态守卫：慢的旧响应不得覆盖新筛选状态
+  const expQs = qs() + (S.provider ? '&provider=' + encodeURIComponent(S.provider) : '');
+  $('btn-export').href = '/api/export?' + expQs;
+  let d;
+  try{ d = await loadAll(); }catch(e){ return; }
+  if(seq !== __seq) return;
   renderKpis(d.stats, d.budget);
   renderBudget(d.budget);
   __ts = d.ts || [];
@@ -581,8 +586,8 @@ function renderBudget(b){
   bar($('bud-d-bar'), d); bar($('bud-m-bar'), m);
   $('bud-d-sub').textContent = d.limit ? `${usd2(d.spent)} / ${usd2(d.limit)}` : '未设置日预算';
   $('bud-m-sub').textContent = m.limit ? `${usd2(m.spent)} / ${usd2(m.limit)}` : '未设置月预算';
-  $('bud-d-pct').textContent = d.limit ? Math.round(d.ratio*100)+'%' : '—';
-  $('bud-m-pct').textContent = m.limit ? Math.round(m.ratio*100)+'%' : '—';
+  $('bud-d-pct').textContent = d.limit ? Math.round((d.ratio||0)*100)+'%' : '—';
+  $('bud-m-pct').textContent = m.limit ? Math.round((m.ratio||0)*100)+'%' : '—';
   $('bud-d-rem').textContent = d.limit ? `剩余 ${usd2(d.remaining)}` : '点「修改」设置';
   $('bud-m-rem').textContent = m.limit ? `剩余 ${usd2(m.remaining)}` : '点「修改」设置';
 }
@@ -728,7 +733,7 @@ ${r.error?('错误: '+esc(r.error)):''}</pre></div></td></tr>` : '';
       <td class="num">${fmt(r.prompt_tokens)}</td>
       <td class="num">${fmt(r.completion_tokens)}</td>
       <td class="num">${usd(r.cost)}</td>
-      <td class="num" style="color:var(--dim)">${Math.round(r.latency_ms)} ms</td>
+      <td class="num" style="color:var(--dim)">${Math.round(r.latency_ms||0)} ms</td>
       <td class="num">${r.status===402
         ? '<span class="tag err" title="预算超限拦截">拒</span>'
         : '<span class="tag '+(ok?'ok':'err')+'">'+r.status+'</span>'}</td>
@@ -882,13 +887,22 @@ $('btn-save').addEventListener('click', async ()=>{
     if(v) aliases[k] = v;
   });
   Object.keys(__aliasBase).forEach(k => { if(!seenKeys.has(k) && __aliasBase[k]) aliases[k] = __aliasBase[k]; });
+  const daily = Number($('cfg-daily').value) || 0;
+  const monthly = Number($('cfg-monthly').value) || 0;
+  const ratio = Number($('cfg-enforce-ratio').value) || 1;
+  const rate = Number($('cfg-rate').value) || 7.2;
+  const upstream = $('cfg-upstream').value.trim();
+  if(daily < 0 || monthly < 0){ toast('预算不能为负（0 = 不限制）'); return; }
+  if(ratio <= 0 || ratio > 1){ toast('拦截阈值需在 (0, 1] 之间'); return; }
+  if(rate < 0){ toast('汇率不能为负'); return; }
+  if(upstream && !/^https?:\/\//i.test(upstream)){ toast('默认上游必须是 http(s) 地址'); return; }
   const patch = {
-    budget_daily: Number($('cfg-daily').value) || 0,
-    budget_monthly: Number($('cfg-monthly').value) || 0,
+    budget_daily: daily,
+    budget_monthly: monthly,
     enforce_budget: $('cfg-enforce').checked,
-    enforce_budget_ratio: Number($('cfg-enforce-ratio').value) || 1,
-    usd_cny_rate: Number($('cfg-rate').value) || 7.2,
-    default_upstream: $('cfg-upstream').value.trim() || undefined,
+    enforce_budget_ratio: ratio,
+    usd_cny_rate: rate,
+    default_upstream: upstream || undefined,
     webhook_url: $('cfg-webhook').value.trim(),   // 空串 = 清空告警地址
     webhook_type: $('cfg-webhook-type').value,
     pricing_overrides: pricing,

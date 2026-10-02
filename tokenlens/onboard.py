@@ -208,6 +208,17 @@ def _read_json(path: Path) -> Optional[dict]:
         return None
 
 
+def _atomic_write_text(path: Path, text: str):
+    """temp + rename 原子写：进程被杀/断电也不会留下截断的坏 JSON。"""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _marker_path(p: Path) -> Path:
+    return p.with_suffix(p.suffix + ".tokenlens-wired")
+
+
 def _wire_claude(cfg: Config, home: Path) -> str:
     p = _claude_settings(home)
     data = _read_json(p) if p.exists() else {}
@@ -220,12 +231,14 @@ def _wire_claude(cfg: Config, home: Path) -> str:
     p.parent.mkdir(parents=True, exist_ok=True)
     bak = p.with_suffix(p.suffix + _BAK_SUFFIX)
     if p.exists() and not bak.exists():
-        shutil.copyfile(p, bak)  # 只备份首次接入前的原始状态，重复接入不覆盖
+        shutil.copy2(p, bak)  # 只备份首次接入前的原始状态，重复接入不覆盖
     env = data.setdefault("env", {})
     if not isinstance(env, dict):
         return f"[claude-code] {p} 的 env 不是对象，已跳过自动写入"
     env["ANTHROPIC_BASE_URL"] = target
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write_text(p, json.dumps(data, ensure_ascii=False, indent=2))
+    # 记录本次写入的地址：之后端口改了 unwire 也认得（否则只比对当前端口会拒还原）
+    _atomic_write_text(_marker_path(p), json.dumps({"base_url": target}, ensure_ascii=False))
     return f"[claude-code] 已写入 ANTHROPIC_BASE_URL={target}" + (f"（备份: {bak}）" if bak.exists() else "")
 
 
@@ -234,32 +247,60 @@ def _unwire_claude(cfg: Config, home: Path) -> str:
     if not p.exists():
         return "[claude-code] 未找到 settings.json，无需还原"
     data = _read_json(p)
-    if data is None:
-        return f"[claude-code] {p} 不是有效 JSON，不做还原"
-    current = (data.get("env") or {}).get("ANTHROPIC_BASE_URL")
-    if current != _claude_base(cfg):
-        return f"[claude-code] 当前 base_url 非本代理（{current}），未改动"
     bak = p.with_suffix(p.suffix + _BAK_SUFFIX)
-    if bak.exists():
-        shutil.copyfile(bak, p)
-        bak.unlink()
-        return f"[claude-code] 已从备份还原 {p}"
-    (data.get("env") or {}).pop("ANTHROPIC_BASE_URL", None)
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    return "[claude-code] 已移除 ANTHROPIC_BASE_URL"
+    if data is None:
+        # 仅当文件损坏时才用备份整文件兜底；正常路径绝不覆盖用户文件
+        if bak.exists():
+            shutil.copy2(bak, p)
+            _marker_path(p).unlink(missing_ok=True)
+            return f"[claude-code] {p} 已损坏，已从备份整体还原"
+        return f"[claude-code] {p} 不是有效 JSON，不做还原"
+    env = data.get("env")
+    if not isinstance(env, dict):
+        return f"[claude-code] {p} 的 env 不是对象，不做还原"
+    current = env.get("ANTHROPIC_BASE_URL")
+    if current is None:
+        _marker_path(p).unlink(missing_ok=True)
+        return "[claude-code] 未接入（无 ANTHROPIC_BASE_URL），无需还原"
+    # 认得的地址：当前配置的代理地址 + wire 当时写入的地址（端口可能已改）
+    allowed = {_claude_base(cfg)}
+    try:
+        marker = json.loads(_marker_path(p).read_text(encoding="utf-8"))
+        if isinstance(marker, dict) and marker.get("base_url"):
+            allowed.add(marker["base_url"])
+    # aqg: top-level boundary
+    except Exception:  # aqg: top-level boundary 标记缺失只影响还原判定范围，不阻断
+        pass
+    if current not in allowed:
+        return f"[claude-code] 当前 base_url 非本代理写入（{current}），未改动"
+    # 只还原这一个键：备份里有用户原始 base_url 就恢复它，否则删掉键；
+    # 文件其余内容（wire 之后用户/Claude Code 写入的 hooks 等）原样保留
+    original = None
+    bdata = _read_json(bak) if bak.exists() else None
+    if isinstance(bdata, dict) and isinstance(bdata.get("env"), dict):
+        original = bdata["env"].get("ANTHROPIC_BASE_URL")
+    if original:
+        env["ANTHROPIC_BASE_URL"] = original
+    else:
+        env.pop("ANTHROPIC_BASE_URL", None)
+    _atomic_write_text(p, json.dumps(data, ensure_ascii=False, indent=2))
+    _marker_path(p).unlink(missing_ok=True)
+    return f"[claude-code] 已还原 ANTHROPIC_BASE_URL（其余内容未动，备份保留: {bak}）"
 
 
 _AUTO = {"claude-code": (_wire_claude, _unwire_claude)}
 
 
 def wired_base(app_id: str, cfg: Config, home: Optional[Path] = None) -> Optional[str]:
-    """返回应用当前生效的接入地址；未接入返回 None。"""
+    """返回应用当前生效的接入地址；未接入（或指向第三方中转）返回 None。"""
     home = home or Path.home()
     if app_id == "claude-code":
         p = _claude_settings(home)
         data = _read_json(p) if p.exists() else None
         if isinstance(data, dict):
-            return (data.get("env") or {}).get("ANTHROPIC_BASE_URL") or None
+            v = (data.get("env") or {}).get("ANTHROPIC_BASE_URL")
+            # 只有指向本代理才算已接入；指向第三方中转不算（避免 detect 误报）
+            return v if v and v == _claude_base(cfg) else None
     return None
 
 

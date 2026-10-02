@@ -55,7 +55,8 @@ def _get_fallback_encoding():
 def heuristic_tokens(text: str) -> int:
     if not text:
         return 0
-    cjk = len(_CJK.findall(text))
+    # finditer 流式计数：findall 会物化全部匹配，大文本下内存尖峰
+    cjk = sum(1 for _ in _CJK.finditer(text))
     other = len(text) - cjk
     return max(1, int(cjk * _CJK_PER_CHAR + other * _OTHER_PER_CHAR))
 

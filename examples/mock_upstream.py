@@ -11,7 +11,7 @@ import random
 import time
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 app = FastAPI(title="TokenLens Mock Upstream")
 
@@ -35,6 +35,10 @@ async def chat(request: Request):
     text = json.dumps(body.get("messages", []), ensure_ascii=False)
     prompt = max(8, len(text) // 3)
     completion = 120
+
+    if body.get("__force_redirect"):
+        # 供 SSRF 回归测试：302 到指定地址（通常是内网地址），代理必须拒绝而非跟随
+        return RedirectResponse(body["__force_redirect"], status_code=302)
 
     if body.get("__force_error"):
         return JSONResponse({"error": {"message": "mock upstream error",

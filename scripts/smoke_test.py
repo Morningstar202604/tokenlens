@@ -9,6 +9,9 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+
+TMPDIR = tempfile.gettempdir().replace("\\", "/")
 import time
 from pathlib import Path
 
@@ -19,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 MOCK_PORT = 8901
 PROXY_PORT = 8799
-DB = "/tmp/tokenlens-smoke.db"
+DB = TMPDIR + "/tokenlens-smoke.db"
 BASE = f"http://127.0.0.1:{PROXY_PORT}/v1"
 CHECK = []
 
@@ -43,14 +46,14 @@ def wait_up(url: str, timeout: int = 40):
 
 def main():
     # 真实库在 $TOKENLENS_HOME/usage.db（smoke 配置的 HOME），删干净避免残留
-    for p in (Path("/tmp/tokenlens-smoke/usage.db"), Path(DB)):
+    for p in (Path(TMPDIR + "/tokenlens-smoke/usage.db"), Path(DB)):
         if p.exists():
             os.remove(p)
-    env = dict(os.environ, TOKENLENS_HOME="/tmp/tokenlens-smoke")
+    env = dict(os.environ, TOKENLENS_HOME=TMPDIR + "/tokenlens-smoke")
     # [9] SDK 段在进程内 import tokenlens：必须让本进程也指向 smoke 库，
     # 否则 Config.load() 会把演示记录写进真实 ~/.tokenlens/usage.db
-    os.environ["TOKENLENS_HOME"] = "/tmp/tokenlens-smoke"
-    Path("/tmp/tokenlens-smoke").mkdir(exist_ok=True)
+    os.environ["TOKENLENS_HOME"] = TMPDIR + "/tokenlens-smoke"
+    Path(TMPDIR + "/tokenlens-smoke").mkdir(exist_ok=True)
 
     mock = subprocess.Popen([sys.executable, str(ROOT / "examples/mock_upstream.py"),
                              "--port", str(MOCK_PORT)], env=env,
@@ -226,10 +229,14 @@ def main():
         check("并发记录全部入库", stats["requests"] >= 57, f"{stats['requests']} 条")
 
         print("\n[13] 预算直改即时生效 + 告警写入")
+        W = {"x-tokenlens-write": "1"}  # 未设 token 时写操作必须带 CSRF 自定义头
         r = httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
-                       json={"scope": "daily", "limit": 0.001})
+                       headers=W, json={"scope": "daily", "limit": 0.001})
         check("POST budget 生效", r.status_code == 200 and r.json()["daily"]["limit"] == 0.001,
               json.dumps(r.json(), ensure_ascii=False)[:120])
+        r = httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
+                       json={"scope": "daily", "limit": 0.001})
+        check("写操作无CSRF头被403", r.status_code == 403, str(r.status_code))
         httpx.post(f"{BASE}/chat/completions", headers={"Authorization": "Bearer sk-test-key"},
                    json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "触发告警"}]})
         time.sleep(0.4)
@@ -237,17 +244,27 @@ def main():
         daily_alert = [a for a in alerts if a["scope"] == "daily"]
         check("告警写入历史", len(daily_alert) >= 1, json.dumps(alerts, ensure_ascii=False)[:160])
         httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
-                   json={"scope": "daily", "limit": 1000})  # 恢复预算
+                   headers=W, json={"scope": "daily", "limit": 1000})  # 恢复预算
         check("恢复预算", httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/budget").json()["daily"]["limit"] == 1000)
 
         print("\n[14] 设置接口")
         r = httpx.put(f"http://127.0.0.1:{PROXY_PORT}/api/config",
-                      json={"webhook_type": "dingtalk", "budget_daily": 1000})
+                      headers=W, json={"webhook_type": "dingtalk", "budget_daily": 1000})
         check("PUT config 生效", r.status_code == 200 and r.json()["webhook_type"] == "dingtalk")
+        r = httpx.put(f"http://127.0.0.1:{PROXY_PORT}/api/config",
+                      headers=W, json={"budget_daily": -5})
+        check("负预算被拒绝", r.status_code == 422, str(r.status_code))
+        r = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/timeseries?rng=garbage")
+        check("非法range返回400", r.status_code == 400, str(r.status_code))
+        r = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/api/timeseries?rng=200000h")
+        check("超大range返回400", r.status_code == 400, str(r.status_code))
+        r = httpx.get(f"http://127.0.0.1:{PROXY_PORT}/",
+                      headers={"Host": "evil-rebind.example"})
+        check("回环部署拒绝非本机Host", r.status_code == 400, str(r.status_code))
 
         print("\n[15] 预算硬拦截（402）")
         httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
-                   json={"scope": "daily", "limit": 0.0001})
+                   headers=W, json={"scope": "daily", "limit": 0.0001})
         r = c.post(f"{BASE}/chat/completions", json={
             "model": "gpt-4o-mini", "messages": [{"role": "user", "content": "应被拦截"}]})
         check("超限请求被 402 拒绝", r.status_code == 402, str(r.status_code))
@@ -260,10 +277,17 @@ def main():
         check("拦截被记录进明细", denied is not None and "预算" in denied.get("error", ""),
               json.dumps(denied, ensure_ascii=False)[:120] if denied else "无 402 记录")
         httpx.post(f"http://127.0.0.1:{PROXY_PORT}/api/budget",
-                   json={"scope": "daily", "limit": 1000})
+                   headers=W, json={"scope": "daily", "limit": 1000})
         r2 = c.post(f"{BASE}/chat/completions", json={
             "model": "gpt-4o-mini", "messages": [{"role": "user", "content": "恢复正常"}]})
         check("恢复预算后请求正常", r2.status_code == 200, str(r2.status_code))
+
+        print("\n[15b] 上游重定向 SSRF 防护")
+        r = c.post(f"{BASE}/chat/completions", json={
+            "model": "gpt-4o-mini", "messages": [{"role": "user", "content": "redirect"}],
+            "__force_redirect": "http://127.0.0.1:11434/v1"})
+        check("302跳内网被逐跳拒绝", r.status_code == 400 and "invalid_upstream" in r.text,
+              f"{r.status_code} {r.text[:80]}")
 
         print("\n[9] SDK 埋点（不经代理）")
         sys.path.insert(0, str(ROOT))
@@ -289,9 +313,9 @@ def main():
                              capture_output=True, text=True)
         check("CLI top 正常", out.returncode == 0 and "成本USD" in out.stdout)
         out = subprocess.run([sys.executable, "-m", "tokenlens", "export", "--out",
-                              "/tmp/tokenlens-smoke.csv", "--range", "all"],
+                              TMPDIR + "/tokenlens-smoke.csv", "--range", "all"],
                              env=env, cwd=str(ROOT), capture_output=True, text=True)
-        csv_ok = Path("/tmp/tokenlens-smoke.csv").exists()
+        csv_ok = Path(TMPDIR + "/tokenlens-smoke.csv").exists()
         check("CLI export 正常", out.returncode == 0 and csv_ok)
 
     finally:

@@ -96,7 +96,7 @@ def seed(store: Store, meter: Meter, n: int = 600, days: int = 7, seed_val: int 
 
 def seed_cli(args):
     from .config import Config
-    cfg = Config.load()
+    cfg = Config.load(getattr(args, "config", None))
     store = Store(cfg.db_path)
     meter = Meter(store, cfg)
     n = seed(store, meter, n=args.n, days=args.days)

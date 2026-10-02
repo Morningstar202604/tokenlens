@@ -8,6 +8,9 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
+
+TMPDIR = tempfile.gettempdir().replace("\\", "/")
 import threading
 import time
 from fastapi import FastAPI
@@ -58,7 +61,7 @@ def test_pricing():
     check("未知模型计 0", t.price("no-such-model-xyz") == (0.0, 0.0))
     t2 = PricingTable(overrides={"gpt-4o": {"in": 9.9, "out": 19.9}})
     check("overrides 覆盖内置", t2.price("gpt-4o") == (9.9, 19.9))
-    t3 = PricingTable(data_path="/tmp/not-exists.json")
+    t3 = PricingTable(data_path=TMPDIR + "/not-exists.json")
     check("数据缺失回退内置", t3.price("gpt-4o")[0] > 0)
 
     print("[2] 成本计算（含缓存折扣）")
@@ -75,7 +78,7 @@ def test_pricing():
 
 def test_store():
     print("[3] store 聚合")
-    db = "/tmp/tl-unit.db"
+    db = TMPDIR + "/tl-unit.db"
     if Path(db).exists():
         os.remove(db)
     st = Store(db)
@@ -101,7 +104,7 @@ def test_store():
     st.close()
 
     print("[4] 并发写入（busy_timeout / 独立写连接）")
-    db2 = "/tmp/tl-unit-conc.db"
+    db2 = TMPDIR + "/tl-unit-conc.db"
     if Path(db2).exists():
         os.remove(db2)
     st2 = Store(db2)
@@ -126,7 +129,7 @@ def test_store():
 def test_enforce():
     print("[5] 预算硬拦截检查")
     from tokenlens.meter import Meter
-    db = "/tmp/tl-unit-enf.db"
+    db = TMPDIR + "/tl-unit-enf.db"
     if Path(db).exists():
         os.remove(db)
     cfg = Config()
@@ -164,7 +167,7 @@ def test_auth():
     print("[6] 仪表盘访问令牌")
     from fastapi.testclient import TestClient
     from tokenlens.api import create_api
-    db = "/tmp/tl-unit-auth.db"
+    db = TMPDIR + "/tl-unit-auth.db"
     if Path(db).exists():
         os.remove(db)
     st = Store(db)
@@ -201,7 +204,7 @@ def test_webhook():
 def test_sdk_track():
     print("[7] SDK 埋点（track 装饰器：位置参数 + 失败记录）")
     import shutil
-    home = "/tmp/tl-unit-sdk"
+    home = TMPDIR + "/tl-unit-sdk"
     shutil.rmtree(home, ignore_errors=True)
     os.makedirs(home, exist_ok=True)
     os.environ["TOKENLENS_HOME"] = home
@@ -245,6 +248,40 @@ def test_sdk_track():
     st3.close()
 
 
+def test_range_and_clamps():
+    print("[8] range 边界 / Store.last_ts / CSV 前缀往返")
+    from tokenlens.api import parse_range
+    for bad in ("garbage", "0h", "-5d", "999999999999h", "8761h", "366d", "abc12"):
+        try:
+            parse_range(bad)
+            check(f"非法 range {bad} 被拒", False, "未抛 ValueError")
+        except ValueError:
+            check(f"非法 range {bad} 被拒", True)
+    for ok in ("24h", "8760h", "365d", "today", "all", "month", "yesterday"):
+        try:
+            parse_range(ok)
+            check(f"合法 range {ok} 通过", True)
+        except ValueError as e:
+            check(f"合法 range {ok} 通过", False, str(e))
+    store_ts = Store(TMPDIR + "/tl-unit-lastts.db")
+    try:
+        store_ts.insert({"ts": 1700000000.0, "day": "2023-11-15", "hour": 3, "model": "m"})
+        check("Store.last_ts 返回最近记录", store_ts.last_ts() == 1700000000.0,
+              str(store_ts.last_ts()))
+        check("空库 last_ts 为 None", Store(TMPDIR + "/tl-unit-lastts-empty.db").last_ts() is None)
+    finally:
+        store_ts.close()
+    # export 的公式注入前缀与 import 的逆向剥离必须互逆
+    def sanitize(v):
+        return "'" + v if isinstance(v, str) and v and v[0] in ("=", "+", "-", "@", chr(9), chr(13)) else v
+    def desanitize(v):
+        bad = chr(61) + chr(43) + chr(45) + chr(64) + chr(9) + chr(13)
+        return v[1:] if isinstance(v, str) and len(v) > 1 and v[0] == chr(39) and v[1] in bad else v
+    for raw in ("-x", "=HYPERLINK(\"u\",\"t\")", "+1", "@SUM(A1)", "normal", "正常项目"):
+        check(f"CSV 前缀往返不变形: {raw[:12]}",
+              desanitize(sanitize(raw)) == raw, f"{sanitize(raw)[:16]} -> {desanitize(sanitize(raw))[:16]}")
+
+
 def main():
     test_pricing()
     test_store()
@@ -252,6 +289,7 @@ def main():
     test_auth()
     test_webhook()
     test_sdk_track()
+    test_range_and_clamps()
     passed = sum(1 for _, ok, _ in CHECK if ok)
     print(f"\n{'='*52}\n结果: {passed}/{len(CHECK)} 通过")
     failed = [n for n, ok, _ in CHECK if not ok]

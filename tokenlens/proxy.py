@@ -30,6 +30,13 @@ HOP_HEADERS = {
     "host", "accept-encoding",
 }
 
+# 请求体 / 缓冲式上游响应的内存上限：本地代理不需要无限流
+MAX_BODY_BYTES = 50 * 1024 * 1024
+MAX_BUFFER_BYTES = 100 * 1024 * 1024
+MAX_REDIRECTS = 5
+_CREDENTIAL_HEADERS = ("authorization", "cookie", "proxy-authorization",
+                       "x-api-key", "api-key")
+
 
 class ProxyContext:
     """一次转发过程中的共享状态。字段显式声明以便静态检查。"""
@@ -145,6 +152,11 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
         started = time.time()
         rid = uuid.uuid4().hex[:12]
         body = await request.body()
+        if len(body) > MAX_BODY_BYTES:
+            return JSONResponse(
+                {"error": {"message": f"tokenlens: 请求体超过上限（{MAX_BODY_BYTES // (1024 * 1024)}MB）",
+                           "type": "request_too_large"}},
+                status_code=413, headers={"x-tokenlens-id": rid})
 
         # ---- 解析上游 ----
         alias, rest = _split_alias(path, cfg)
@@ -235,11 +247,41 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
         headers = _client_headers(request)
         headers.pop("x-tokenlens-upstream", None)
 
+        # 逐跳跟随重定向：每一跳 Location 都重新过内网校验，防止公网上游
+        # 302 跳板打进内网/云元数据（server.py 的 client 已关闭自动跟随）
+        from urllib.parse import urljoin, urlparse
+        method, current = request.method, target
+        resp = None
         try:
-            upstream_req = client.build_request(request.method, target,
-                                                content=body, headers=headers)
-            resp = await client.send(upstream_req, stream=is_stream)
+            for hop in range(MAX_REDIRECTS + 1):
+                upstream_req = client.build_request(method, current,
+                                                    content=body if method != "GET" else None,
+                                                    headers=headers)
+                resp = await client.send(upstream_req, stream=is_stream)
+                if resp.status_code not in (301, 302, 303, 307, 308):
+                    break
+                location = resp.headers.get("location")
+                if not location or hop >= MAX_REDIRECTS:
+                    break  # 重定向环/超次数：把最后一跳原样交回客户端
+                next_url = urljoin(current, location)
+                reject = _reject_unsafe_upstream(next_url, cfg.allow_private_upstreams)
+                if reject:
+                    await resp.aclose()
+                    return JSONResponse(
+                        {"error": {"message": f"tokenlens: 重定向目标被拒绝：{reject}",
+                                   "type": "invalid_upstream"}},
+                        status_code=400, headers={"x-tokenlens-id": rid})
+                if urlparse(next_url).netloc != urlparse(current).netloc:
+                    # 跨主机跳转不携带凭据（同浏览器语义），防 API key 外泄给跳转目标
+                    for h in _CREDENTIAL_HEADERS:
+                        headers.pop(h, None)
+                if resp.status_code == 303 or (resp.status_code in (301, 302) and method == "POST"):
+                    method, body = "GET", b""
+                current = next_url
+                await resp.aclose()
         except Exception as exc:
+            if resp is not None:
+                await resp.aclose()
             await asyncio.to_thread(
                 meter.record,
                 provider=ctx.provider, upstream=ctx.upstream, model=ctx.model,
@@ -249,6 +291,10 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
                 request_id=rid, session_id=ctx.session_id, estimated=True,
             )
             return JSONResponse({"error": {"message": f"tokenlens: 上游连接失败 {exc}",
+                                           "type": "upstream_error"}}, status_code=502)
+
+        if resp is None:  # 循环至少发送一次，防御式收口（类型收窄）
+            return JSONResponse({"error": {"message": "tokenlens: 上游无响应",
                                            "type": "upstream_error"}}, status_code=502)
 
         status = resp.status_code
@@ -262,16 +308,24 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
     async def _buffered_response(client, resp, ctx, status, resp_headers, started, payload):
         raw = b""
         done = False
+        truncated = False
         try:
             async for chunk in resp.aiter_bytes():
                 raw += chunk
+                if len(raw) > MAX_BUFFER_BYTES:
+                    # 无界读入会耗尽内存：超出上限即截断（响应头提示客户端）
+                    truncated = True
+                    break
             done = True
         except Exception as exc:
             raw = raw or b""
             resp_headers.pop("content-length", None)
             error = f"stream read error: {exc}"
         else:
-            error = None
+            error = f"response truncated at {MAX_BUFFER_BYTES // (1024 * 1024)}MB" if truncated else None
+            if truncated:
+                resp_headers["x-tokenlens-truncated"] = "1"
+                resp_headers.pop("content-length", None)
         finally:
             await resp.aclose()   # 共享连接池由 app 生命周期统一关闭，这里不关 client
 

@@ -10,6 +10,15 @@ import time
 from pathlib import Path
 
 from .api import parse_range
+
+
+def _cli_range(rng: str):
+    """CLI 版 range 解析：非法值友好退出而不是抛 HTTPException/ValueError。"""
+    try:
+        return parse_range(rng)
+    except ValueError as exc:
+        print(f"错误: {exc}")
+        sys.exit(1)
 from .config import Config, DEFAULT_CONFIG_PATH
 from .meter import Meter
 from .pricing import PricingTable
@@ -68,7 +77,7 @@ def cmd_start(args):
 def cmd_stats(args):
     cfg = Config.load(args.config)
     store, meter = _ctx(cfg)
-    s, e = parse_range(args.range)
+    s, e = _cli_range(args.range)
     s_data = store.summary(s, e, args.project, args.model)
     if args.json:
         print(json.dumps(s_data, ensure_ascii=False, indent=2))
@@ -106,7 +115,7 @@ def cmd_stats(args):
 def cmd_top(args):
     cfg = Config.load(args.config)
     store, _ = _ctx(cfg)
-    s, e = parse_range(args.range)
+    s, e = _cli_range(args.range)
     rows = store.breakdown(args.field, s, e, args.project, args.model, limit=args.limit)
     if not rows:
         print("暂无数据")
@@ -122,7 +131,7 @@ def cmd_top(args):
 def cmd_export(args):
     cfg = Config.load(args.config)
     store, _ = _ctx(cfg)
-    s, e = parse_range(args.range)
+    s, e = _cli_range(args.range)
     limit = args.limit if args.limit else 100000
     first_page = store.export_page(1, 0, s, e, args.project, args.model)
     if not first_page:
@@ -148,6 +157,8 @@ def cmd_export(args):
                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
                     n += 1
         print(f"已导出 {n} 条 -> {out}（JSONL）")
+        if n >= limit and store.export_page(1, offset, s, e, args.project, args.model):
+            print(f"  提示: 数据超过 --limit {limit}，仅导出前 {limit} 条，可用 --limit 调大")
         return
     with out.open("w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=list(first.keys()))
@@ -170,6 +181,8 @@ def cmd_export(args):
                 w.writerow(r)
                 n += 1
     print(f"已导出 {n} 条 -> {out}")
+    if n >= limit and store.export_page(1, offset, s, e, args.project, args.model):
+        print(f"  提示: 数据超过 --limit {limit}，仅导出前 {limit} 条，可用 --limit 调大")
 
 
 def cmd_import(args):
@@ -196,6 +209,9 @@ def cmd_import(args):
                 for k, v in raw.items():
                     if k not in known or v in ("", None):
                         continue
+                    # 逆向 export 的公式注入防护前缀：'-x 还原为 -x，保证往返不变形
+                    if isinstance(v, str) and len(v) > 1 and v[0] == chr(39) and v[1] in "=+-@" + chr(9) + chr(13):
+                        v = v[1:]
                     rec[k] = v
                 if "ts" in rec:
                     ts = rec["ts"]
@@ -235,10 +251,13 @@ def cmd_pricing(args):
     cfg = Config.load(args.config)
     table = PricingTable(cfg.pricing_overrides)
     if args.set_model:
+        if len(args.price) != 2 or args.price[0] < 0 or args.price[1] < 0:
+            print("用法: tokenlens pricing --set-model <模型名> <输入价> <输出价>（USD/1M，非负）")
+            sys.exit(1)
         pin, pout = args.price
         cfg.pricing_overrides[args.set_model] = {"in": pin, "out": pout}
-        cfg.save()
-        print(f"已设置 {args.set_model}: in=${pin}/1M out=${pout}/1M -> {DEFAULT_CONFIG_PATH}")
+        p = cfg.save(args.config)
+        print(f"已设置 {args.set_model}: in=${pin}/1M out=${pout}/1M -> {p}")
         return
     model = args.model
     if model:
@@ -257,10 +276,16 @@ def cmd_budget(args):
     cfg = Config.load(args.config)
     store, meter = _ctx(cfg)
     if args.daily is not None:
+        if args.daily < 0:
+            print("错误: 预算不能为负（0 = 不限制）")
+            sys.exit(1)
         cfg.budget_daily = args.daily
     if args.monthly is not None:
+        if args.monthly < 0:
+            print("错误: 预算不能为负（0 = 不限制）")
+            sys.exit(1)
         cfg.budget_monthly = args.monthly
-    cfg.save()
+    cfg.save(args.config)
     b = meter.budget_status()
     for scope in ("daily", "monthly"):
         d = b[scope]
@@ -351,7 +376,7 @@ def cmd_config(args):
             print(f"无法把 {raw!r} 解析为 {type(old).__name__}: {exc}")
             sys.exit(1)
         setattr(cfg, key, val)
-        p = cfg.save()
+        p = cfg.save(args.config)
         print(f"{key} = {json.dumps(val, ensure_ascii=False)}  → 已保存 {p}")
         return
     print(json.dumps(cfg.__dict__, ensure_ascii=False, indent=2))
@@ -387,7 +412,7 @@ def cmd_doctor(args):
         store = Store(cfg.db_path)
         n = store.summary()["requests"]
         size = Path(cfg.db_path).stat().st_size / 1024 / 1024
-        last = store._local.execute("SELECT MAX(ts) FROM requests").fetchone()[0]
+        last = store.last_ts()
         ago = f"{int(time.time() - last)}s 前" if last else "无"
         print(f"  [ok]   数据库 {cfg.db_path}（{n:,} 条记录 · {size:.1f} MB · 最近写入 {ago}）")
     except Exception as exc:
