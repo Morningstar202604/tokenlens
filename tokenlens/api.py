@@ -62,6 +62,7 @@ class ConfigPatch(BaseModel):
     pricing_overrides: Optional[Dict[str, Dict[str, float]]] = None
     allow_private_upstreams: Optional[bool] = None
     retention_days: Optional[int] = None
+    key_aliases: Optional[Dict[str, str]] = None
 
 
 def _fill_gaps(rows, bucket: str, start, end, rng: str):
@@ -139,17 +140,24 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
     def breakdown(field: str = "model", rng: str = "today", project: Optional[str] = None,
                   model: Optional[str] = None, provider: Optional[str] = None, limit: int = 20,
                   session: Optional[str] = None):
-        if field not in {"model", "project", "provider", "endpoint", "day"}:
+        if field not in {"model", "project", "provider", "endpoint", "day", "key_hash"}:
             raise HTTPException(400, "unsupported field")
         s, e = parse_range(rng)
-        return store.breakdown(field, s, e, project, model, provider, limit, session)
+        rows = store.breakdown(field, s, e, project, model, provider, limit, session)
+        if field == "key_hash":
+            # 密钥指纹 → 应用别名，让「谁在花钱」直接显示应用名
+            aliases = cfg.key_aliases or {}
+            rows = [{**r, "name": aliases.get(r["name"], r["name"])} for r in rows]
+        return rows
 
     @router.get("/recent")
     def recent(limit: int = 50, rng: str = "today", project: Optional[str] = None,
                model: Optional[str] = None, provider: Optional[str] = None,
                session: Optional[str] = None):
         s, e = parse_range(rng)
-        return store.recent(min(limit, 500), s, e, project, model, provider, session)
+        rows = store.recent(min(limit, 500), s, e, project, model, provider, session)
+        aliases = cfg.key_aliases or {}
+        return [{**r, "app": aliases.get(r.get("key_hash") or "", "")} for r in rows]
 
     @router.get("/budget")
     def budget():
@@ -163,6 +171,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
             "providers": store.distinct("provider"),
             "endpoints": store.distinct("endpoint"),
             "sessions": [s for s in store.distinct("session_id") if s][:100],
+            "keys": [k for k in store.distinct("key_hash") if k and k != "anonymous"][:100],
         }
 
     @router.post("/budget", dependencies=[Depends(require_write)])
@@ -215,6 +224,7 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
             "pricing_overrides": cfg.pricing_overrides,
             "allow_private_upstreams": cfg.allow_private_upstreams,
             "retention_days": cfg.retention_days,
+            "key_aliases": cfg.key_aliases,
         }
 
     @router.get("/config")

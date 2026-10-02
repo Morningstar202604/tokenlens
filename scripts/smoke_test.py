@@ -47,6 +47,9 @@ def main():
         if p.exists():
             os.remove(p)
     env = dict(os.environ, TOKENLENS_HOME="/tmp/tokenlens-smoke")
+    # [9] SDK 段在进程内 import tokenlens：必须让本进程也指向 smoke 库，
+    # 否则 Config.load() 会把演示记录写进真实 ~/.tokenlens/usage.db
+    os.environ["TOKENLENS_HOME"] = "/tmp/tokenlens-smoke"
     Path("/tmp/tokenlens-smoke").mkdir(exist_ok=True)
 
     mock = subprocess.Popen([sys.executable, str(ROOT / "examples/mock_upstream.py"),

@@ -174,10 +174,10 @@ def patch_openai(project: str = "default"):
             continue
 
         def make(orig, async_):
-            def _record_failure(started):
+            def _record_failure(started, model=None):
                 try:
                     lens.meter.record(
-                        provider="openai", model=kwargs.get("model"), endpoint="sdk",
+                        provider="openai", model=model, endpoint="sdk",
                         project=project, latency_ms=(time.time() - started) * 1000,
                         status=500, error=f"openai call failed: {sys.exc_info()[1]}"[:500],
                         estimated=True,
@@ -190,7 +190,7 @@ def patch_openai(project: str = "default"):
                 try:
                     result = orig(self, *args, **kwargs)
                 except Exception:
-                    _record_failure(started)
+                    _record_failure(started, kwargs.get("model"))
                     raise
                 try:
                     lens.record_response(
@@ -209,7 +209,7 @@ def patch_openai(project: str = "default"):
                 try:
                     result = await orig(self, *args, **kwargs)
                 except Exception:
-                    _record_failure(started)
+                    _record_failure(started, kwargs.get("model"))
                     raise
                 try:
                     lens.record_response(
@@ -228,7 +228,8 @@ def patch_openai(project: str = "default"):
             setattr(fn, "_tokenlens_patched", True)
             return fn
 
-        target.create = make(original, is_async)
+        # setattr 形式赋值，避免 mypy method-assign 误报（create 本就是可覆写的挂载点）
+        setattr(target, "create", make(original, is_async))
     print("[tokenlens] openai SDK 已接入监控")
     return lens
 

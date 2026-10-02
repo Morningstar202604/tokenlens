@@ -46,6 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_req_ts     ON requests(ts);
 CREATE INDEX IF NOT EXISTS idx_req_model  ON requests(model);
 CREATE INDEX IF NOT EXISTS idx_req_proj   ON requests(project);
 CREATE INDEX IF NOT EXISTS idx_req_sess   ON requests(session_id);
+CREATE INDEX IF NOT EXISTS idx_req_key    ON requests(key_hash);
 
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -261,7 +262,7 @@ class Store:
 
     def breakdown(self, field: str, start=None, end=None, project=None, model=None,
                   provider=None, limit: int = 20, session=None) -> List[Dict[str, Any]]:
-        allowed = {"model", "project", "provider", "endpoint", "day"}
+        allowed = {"model", "project", "provider", "endpoint", "day", "key_hash"}
         if field not in allowed:
             field = "model"
         with self._lock:
@@ -322,7 +323,7 @@ class Store:
             return dict(row) if row else {"requests": 0, "errors": 0, "tokens": 0, "cost": 0}
 
     def distinct(self, field: str) -> List[str]:
-        if field not in {"model", "project", "provider", "endpoint", "session_id"}:
+        if field not in {"model", "project", "provider", "endpoint", "session_id", "key_hash"}:
             return []
         with self._lock:
             rows = self._local.execute(

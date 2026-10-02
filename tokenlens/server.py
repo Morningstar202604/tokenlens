@@ -24,6 +24,11 @@ WEB_DIR = Path(__file__).parent / "web"
 def create_app(cfg: Optional[Config] = None) -> FastAPI:
     cfg = cfg or Config.load()
     store = Store(cfg.db_path)
+    if cfg.retention_days > 0:
+        # 启动即按保留天数清理，避免只靠手动 prune
+        removed = store.prune(cfg.retention_days)
+        if removed:
+            print(f"[tokenlens] 启动清理：删除 {removed} 条 {cfg.retention_days} 天前的记录")
     pricing = PricingTable(cfg.pricing_overrides)
     meter = Meter(store, cfg, pricing)
 

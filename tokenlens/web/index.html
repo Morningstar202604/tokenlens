@@ -12,8 +12,17 @@
     --bg:#0B0F17; --panel:#131A26; --line:#1F2A3A; --line-soft:rgba(31,42,58,.55);
     --text:#E6EBF5; --muted:#94A3B8; --dim:#5F6B81;
     --main:#2DD4BF; --warn:#F59E0B; --danger:#F87171; --ok:#34D399;
+    --overlay:rgba(5,8,14,.6);
     --radius:12px;
   }
+  html[data-theme="light"]{
+    --bg:#F3F6FA; --panel:#FFFFFF; --line:#E1E8F1; --line-soft:rgba(225,232,241,.6);
+    --text:#182335; --muted:#4E5F7B; --dim:#8391A8;
+    --warn:#B45309; --danger:#DC2626; --ok:#0E9F6E;
+    --overlay:rgba(148,163,184,.35);
+  }
+  .accent-dot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex:none;padding:0}
+  .accent-dot:hover{border-color:var(--text)}
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{
@@ -101,7 +110,7 @@
   th.sorted.desc::after{content:' ▼';font-size:10px;color:var(--accent)}
 
   /* 骨架屏（首屏加载态，数据到达即被渲染替换） */
-  .sk{background:linear-gradient(90deg,#131A26 25%,#1B2434 37%,#131A26 63%);
+  .sk{background:linear-gradient(90deg,var(--panel) 25%,var(--line) 37%,var(--panel) 63%);
       background-size:400% 100%;animation:sk 1.4s ease infinite;border-radius:6px}
   @keyframes sk{0%{background-position:100% 0}100%{background-position:-100% 0}}
   .sk-card{height:118px;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:18px}
@@ -151,9 +160,9 @@
   @media(max-width:640px){.alerts li{grid-template-columns:112px 18px 1fr}.alerts li:not(:last-child)::before{left:121px}.alerts li time{padding-right:9px}}
 
   /* ---------- 设置抽屉 ---------- */
-  .overlay{position:fixed;inset:0;background:rgba(5,8,14,.6);z-index:50}
+  .overlay{position:fixed;inset:0;background:var(--overlay);z-index:50}
   .drawer-close{display:none}
-  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(400px,92vw);background:#101828;border-left:1px solid var(--line);z-index:60;padding:20px;overflow-y:auto;box-shadow:-20px 0 50px rgba(0,0,0,.4)}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(400px,92vw);background:var(--panel);border-left:1px solid var(--line);z-index:60;padding:20px;overflow-y:auto;box-shadow:-20px 0 50px rgba(0,0,0,.4)}
   .drawer h2{margin:0 0 16px;font-size:16px}
   .drawer section{margin-bottom:20px}
   .drawer label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-bottom:5px}
@@ -168,7 +177,7 @@
   .btn-ghost:hover{color:var(--text);border-color:var(--main)}
   .btn-danger{background:none;border:1px solid rgba(248,113,113,.4);color:var(--danger);border-radius:9px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit}
   .btn-danger:hover{background:rgba(248,113,113,.08)}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1C2A3A;border:1px solid var(--line);color:var(--text);padding:10px 18px;border-radius:9px;font-size:13px;z-index:99;opacity:0;transition:opacity .25s;pointer-events:none}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);color:var(--text);padding:10px 18px;border-radius:9px;font-size:13px;z-index:99;opacity:0;transition:opacity .25s;pointer-events:none}
   .toast.show{opacity:1}
 
   .foot{color:var(--dim);font-size:11.5px;text-align:center;margin-top:26px;line-height:1.8}
@@ -218,6 +227,7 @@
     <span class="demo-tag">离线预览 · 演示数据</span>
     <div class="live">
       <span class="pill live-pill"><span class="pulse"></span><b id="live-rpm">0</b><span class="sep">·</span><b id="live-tokens">0</b><span class="sep">tok/60s</span></span>
+      <button id="btn-theme" class="icon-btn" type="button" title="切换亮色/暗色主题">亮色</button>
       <button id="btn-filter" class="icon-btn" type="button">筛选</button>
       <button id="btn-settings" class="icon-btn" type="button">设置</button>
     </div>
@@ -296,6 +306,7 @@
           <button data-d="model" class="on">模型</button>
           <button data-d="project">项目</button>
           <button data-d="provider">厂商</button>
+          <button data-d="key_hash">密钥</button>
         </div>
       </div>
       <div id="rank"><div class="sk-rank"><span class="sk sk-line"></span><span class="sk sk-line w60"></span><span class="sk sk-line w30"></span><span class="sk sk-line w60"></span><span class="sk sk-line w30"></span></div></div>
@@ -315,14 +326,14 @@
     <div class="scroll">
       <table>
         <thead><tr>
-          <th data-k="ts">时间</th><th data-k="model">模型</th><th data-k="project">项目</th><th data-k="provider">厂商</th>
+          <th data-k="ts">时间</th><th data-k="model">模型</th><th data-k="project">项目</th><th data-k="app">应用</th><th data-k="provider">厂商</th>
           <th data-k="prompt_tokens" class="num">输入</th><th data-k="completion_tokens" class="num">输出</th>
           <th data-k="cost" class="num">成本</th><th data-k="latency_ms" class="num">延迟</th><th data-k="status" class="num">状态</th>
         </tr></thead>
         <tbody id="rows">
-          <tr><td colspan="9"><div class="sk sk-row"></div></td></tr>
-          <tr><td colspan="9"><div class="sk sk-row"></div></td></tr>
-          <tr><td colspan="9"><div class="sk sk-row"></div></td></tr>
+          <tr><td colspan="10"><div class="sk sk-row"></div></td></tr>
+          <tr><td colspan="10"><div class="sk sk-row"></div></td></tr>
+          <tr><td colspan="10"><div class="sk sk-row"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -393,6 +404,20 @@
       <a class="btn-ghost" id="btn-export2" href="/api/export?rng=all" download style="text-decoration:none;text-align:center">导出全部 CSV</a>
       <button class="btn-danger" id="btn-reset" type="button">清空数据</button>
     </div>
+  </section>
+  <section>
+    <label><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 11v4M8 8a4 4 0 018 0v1M6 12a6 6 0 1112 0v5a3 3 0 01-3 3"/></svg>应用命名（按 API Key 指纹，保存后生效）</label>
+    <div id="key-alias-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div id="key-alias-empty" style="display:none;color:var(--dim);font-size:11.5px">还没有可命名的 Key：应用接入并发起一次调用后，这里会出现指纹列表</div>
+  </section>
+  <section>
+    <label><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>外观（本机生效，立即保存）</label>
+    <select id="set-theme" style="margin-bottom:8px">
+      <option value="dark">暗色</option>
+      <option value="light">亮色</option>
+      <option value="auto">跟随系统</option>
+    </select>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap" id="accent-row"></div>
   </section>
   <button class="btn-primary" id="btn-save" type="button" style="width:100%">保存设置</button>
 </aside>
@@ -492,6 +517,9 @@ async function refresh(){
   renderAlerts(d.alerts);
   if(d.live){ $('live-rpm').textContent = d.live.rpm ?? 0; $('live-tokens').textContent = fmt(d.live.tokens); }
   $('onboard').hidden = !((d.stats||{}).requests === 0) || S.offline;
+  if(/^https?:$/.test(location.protocol)){
+    $('onboard-cmd').textContent = 'export OPENAI_BASE_URL=' + location.origin + '/v1';
+  }
 }
 
 /* ---------------- KPI：钱为主线 ---------------- */
@@ -568,63 +596,84 @@ const METRICS = {
 };
 let chart = null, rankChart = null;
 function echartsOK(){ return typeof echarts !== 'undefined'; }
+function uiColors(){
+  const light = document.documentElement.dataset.theme === 'light';
+  const cs = getComputedStyle(document.documentElement);
+  return {
+    main: cs.getPropertyValue('--main').trim() || '#2DD4BF',
+    axis: light ? '#8391A8' : '#5F6B81',
+    axisLine: light ? '#E1E8F1' : '#1F2A3A',
+    split: light ? 'rgba(225,232,241,.8)' : 'rgba(31,42,58,.5)',
+    tipBg: light ? '#FFFFFF' : '#1C2A3A',
+    tipLine: light ? '#E1E8F1' : '#1F2A3A',
+    tipText: light ? '#182335' : '#E6EBF5',
+    label: light ? '#4E5F7B' : '#94A3B8',
+    empty: light ? '#8391A8' : '#5F6B81',
+  };
+}
 
 function renderChart(ts){
   const host = $('chart');
   if(!echartsOK()){ host.innerHTML = '<div class="empty">图表组件缺失（assets/echarts.min.js 未加载）</div>'; return; }
   const M = METRICS[S.metric];
+  const ui = uiColors();
+  const color = S.metric === 'cost' ? ui.main : M.color;
   const data = (ts||[]).filter(x=>x).map(d=>({t:d.bucket||'', v:Number(d[S.metric])||0, row:d}));
   if(!chart) chart = echarts.init(host);
   if(!data.length){
     chart.clear();
-    chart.setOption({title:{text:'暂无数据', left:'center', top:'middle', textStyle:{color:'#5F6B81', fontSize:13, fontWeight:'normal'}}});
+    chart.setOption({title:{text:'暂无数据', left:'center', top:'middle', textStyle:{color:ui.empty, fontSize:13, fontWeight:'normal'}}});
     return;
   }
   chart.setOption({
     grid:{left:56, right:16, top:20, bottom:30},
-    tooltip:{trigger:'axis', backgroundColor:'#1C2A3A', borderColor:'#1F2A3A', textStyle:{color:'#E6EBF5', fontSize:12},
+    tooltip:{trigger:'axis', backgroundColor:ui.tipBg, borderColor:ui.tipLine, textStyle:{color:ui.tipText, fontSize:12},
              formatter:p=>{
                const r = data[p[0].dataIndex]?.row || {};
                const lat = r.avg_latency ? Math.round(r.avg_latency)+' ms' : '-';
                return `${p[0].axisValue}<br/>${M.name}: <b>${M.fmt(p[0].data)}</b><br/>请求 ${r.requests??'-'} · 错误 ${r.errors??'-'} · 延迟 ${lat}`;
              }},
     xAxis:{type:'category', data:data.map(d=>d.t.slice(-5)), boundaryGap:false,
-           axisLine:{lineStyle:{color:'#1F2A3A'}}, axisLabel:{color:'#5F6B81', fontSize:11}},
-    yAxis:{type:'value', splitLine:{lineStyle:{color:'rgba(31,42,58,.5)'}}, axisLabel:{color:'#5F6B81', fontSize:11}},
+           axisLine:{lineStyle:{color:ui.axisLine}}, axisLabel:{color:ui.axis, fontSize:11}},
+    yAxis:{type:'value', splitLine:{lineStyle:{color:ui.split}}, axisLabel:{color:ui.axis, fontSize:11}},
     series:[{type:'line', data:data.map(d=>d.v), smooth:true, symbol:'circle', symbolSize:5,
-             lineStyle:{width:2, color:M.color},
-             itemStyle:{color:M.color},
+             lineStyle:{width:2, color:color},
+             itemStyle:{color:color},
              areaStyle:{color:{type:'linear', x:0, y:0, x2:0, y2:1,
-                               colorStops:[{offset:0, color:M.color+'55'},{offset:1, color:M.color+'00'}]}}}]},
+                               colorStops:[{offset:0, color:color+'55'},{offset:1, color:color+'00'}]}}}]},
     true);
   $('trend-hint').textContent = (S.range==='30d'||S.range==='all') ? '按天聚合' : '按小时聚合';
 }
 
-const RANK_COLORS = ['#2DD4BF','#60A5FA','#F472B6','#FBBF24','#A78BFA','#34D399'];
+const RANK_COLORS = ['#60A5FA','#F472B6','#FBBF24','#A78BFA','#34D399','#38BDF8'];
 function renderRank(rows){
   const host = $('rank');
   if(!echartsOK()){ host.innerHTML = '<div class="empty">图表组件缺失</div>'; return; }
+  const ui = uiColors();
   if(!rankChart) rankChart = echarts.init(host);
   const data = (rows||[]).slice(0,10).map(r=>({name:r.name, value:Number(r.cost)||0, tokens:Number(r.total_tokens)||0}));
   if(!data.length){
     rankChart.clear();
-    rankChart.setOption({title:{text:'暂无数据', left:'center', top:'middle', textStyle:{color:'#5F6B81', fontSize:13, fontWeight:'normal'}}});
+    rankChart.setOption({title:{text:'暂无数据', left:'center', top:'middle', textStyle:{color:ui.empty, fontSize:13, fontWeight:'normal'}}});
     return;
   }
   const names = data.map(d=>d.name).reverse();
   const vals = data.map(d=>d.value).reverse();
+  // 系列数据必须与反转后的 y 轴分类同序，否则柱子会挂到错误的名字上
+  const bars = data.map(d=>({value:d.value, tokens:d.tokens})).reverse();
+  const palette = [ui.main, ...RANK_COLORS];
   rankChart.setOption({
     grid:{left:10, right:70, top:8, bottom:8, containLabel:true},
-    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#1C2A3A', borderColor:'#1F2A3A',
-             textStyle:{color:'#E6EBF5', fontSize:12},
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:ui.tipBg, borderColor:ui.tipLine,
+             textStyle:{color:ui.tipText, fontSize:12},
              formatter:p=>`${esc(p[0].name)}<br/>${usd(p[0].value)}`},
-    xAxis:{type:'value', splitLine:{lineStyle:{color:'rgba(31,42,58,.5)'}}, axisLabel:{color:'#5F6B81', fontSize:11}},
+    xAxis:{type:'value', splitLine:{lineStyle:{color:ui.split}}, axisLabel:{color:ui.axis, fontSize:11}},
     yAxis:{type:'category', data:names, axisLine:{show:false}, axisTick:{show:false},
-           axisLabel:{color:'#94A3B8', fontSize:12}},
-    series:[{type:'bar', data:data.map(d=>({value:d.value, tokens:d.tokens})), barWidth:'55%',
+           axisLabel:{color:ui.label, fontSize:12}},
+    series:[{type:'bar', data:bars, barWidth:'55%',
              itemStyle:{borderRadius:[0,4,4,0],
-               color:p=>RANK_COLORS[p.dataIndex % RANK_COLORS.length]},
-             label:{show:true, position:'right', color:'#94A3B8', fontSize:11,
+               color:p=>palette[p.dataIndex % palette.length]},
+             label:{show:true, position:'right', color:ui.label, fontSize:11,
                     formatter:p=>usd2(p.value)+' · '+fmt(p.data.tokens)+' tok'}}]}
   );
 }
@@ -653,7 +702,7 @@ function applyTable(){
   $('pg-next').disabled = S.page>=pages-1;
 
   if(!total){
-    $('rows').innerHTML = `<tr><td colspan="9" class="empty">
+    $('rows').innerHTML = `<tr><td colspan="10" class="empty">
       <svg viewBox="0 0 64 64" width="46" height="46" aria-hidden="true" style="margin-bottom:8px;opacity:.55">
         <rect x="10" y="14" width="44" height="38" rx="4" fill="none" stroke="#5F6B81" stroke-width="2.5"/>
         <path d="M18 24h28M18 32h28M18 40h14" stroke="#5F6B81" stroke-width="2.5" stroke-linecap="round"/>
@@ -667,13 +716,14 @@ function applyTable(){
     const time = dt.toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'}) + ' ' + dt.toLocaleTimeString('zh-CN',{hour12:false});
     const ok = r.status < 400;
     const open = __openId === r.id;
-    const detail = open ? `<tr class="detail-row"><td colspan="9" style="padding:0"><div class="detail-inner"><pre>模型: ${esc(r.model)}  端点: ${esc(r.endpoint||'-')}  项目: ${esc(r.project||'-')}  请求ID: ${esc(r.request_id||'-')}${r.session_id?('  会话: '+esc(r.session_id)):''}
+    const detail = open ? `<tr class="detail-row"><td colspan="10" style="padding:0"><div class="detail-inner"><pre>模型: ${esc(r.model)}  端点: ${esc(r.endpoint||'-')}  项目: ${esc(r.project||'-')}  应用: ${esc(r.app||'-')}  请求ID: ${esc(r.request_id||'-')}${r.session_id?('  会话: '+esc(r.session_id)):''}
 上游: ${esc(r.upstream||'-')}
 ${r.error?('错误: '+esc(r.error)):''}</pre></div></td></tr>` : '';
     return `<tr onclick="toggleRow(${r.id})">
       <td style="color:var(--dim)">${time}</td>
       <td>${esc(r.model||'-')}${r.is_stream?' <span class="tag stream">流</span>':''}${r.cost_source==='estimated'?' <span class="tag est">估</span>':''}</td>
       <td>${esc(r.project||'-')}</td>
+      <td style="color:var(--main)">${esc(r.app||'')}</td>
       <td style="color:var(--muted)">${esc(r.provider||'-')}</td>
       <td class="num">${fmt(r.prompt_tokens)}</td>
       <td class="num">${fmt(r.completion_tokens)}</td>
@@ -774,6 +824,20 @@ $('bud-m-edit').addEventListener('click', ()=>openDrawer('monthly'));
 
 /* 设置抽屉 */
 const DRAWER_FIELDS = ['cfg-daily','cfg-monthly','cfg-enforce','cfg-enforce-ratio','cfg-rate','cfg-upstream','cfg-webhook','cfg-webhook-type','cfg-pricing'];
+let __aliasBase = {};
+async function buildKeyAliasList(){
+  const host = $('key-alias-list'); if(!host) return;
+  let keys = [];
+  try{ const f = await api('/api/filters'); keys = f.keys || []; }catch(e){}
+  const names = Array.from(new Set([...Object.keys(__aliasBase), ...keys]));
+  host.innerHTML = names.map(k => `
+    <div style="display:flex;align-items:center;gap:8px">
+      <code style="flex:none;font-size:11px;color:var(--dim)">${esc(k)}</code>
+      <input data-k="${esc(k)}" value="${esc(__aliasBase[k]||'')}" placeholder="应用名（留空清除）" style="flex:1;margin:0">
+    </div>`).join('');
+  const empty = $('key-alias-empty');
+  if(empty) empty.style.display = names.length ? 'none' : 'block';
+}
 async function openDrawer(focus){
   $('overlay').hidden = false; $('drawer').hidden = false;
   try{
@@ -787,7 +851,10 @@ async function openDrawer(focus){
     $('cfg-webhook').value = c.webhook_url ?? '';
     $('cfg-webhook-type').value = c.webhook_type || 'generic';
     $('cfg-pricing').value = JSON.stringify(c.pricing_overrides||{}, null, 2);
+    __aliasBase = Object.assign({}, c.key_aliases || {});
+    buildKeyAliasList();
   }catch(e){ toast('读取配置失败'); }
+  $('set-theme').value = localStorage.getItem('tl_theme') || 'dark';
   if(focus) setTimeout(()=>{ ($('cfg-'+focus)||$('cfg-daily')).focus(); }, 60);
 }
 $('btn-settings').addEventListener('click', ()=>openDrawer());
@@ -808,6 +875,13 @@ $('btn-save').addEventListener('click', async ()=>{
   let pricing = {};
   try{ pricing = JSON.parse($('cfg-pricing').value||'{}'); }
   catch(e){ toast('价格覆盖 JSON 格式有误'); return; }
+  const aliases = {};
+  const seenKeys = new Set();
+  document.querySelectorAll('#key-alias-list input').forEach(i => {
+    const k = i.dataset.k, v = (i.value||'').trim(); seenKeys.add(k);
+    if(v) aliases[k] = v;
+  });
+  Object.keys(__aliasBase).forEach(k => { if(!seenKeys.has(k) && __aliasBase[k]) aliases[k] = __aliasBase[k]; });
   const patch = {
     budget_daily: Number($('cfg-daily').value) || 0,
     budget_monthly: Number($('cfg-monthly').value) || 0,
@@ -818,6 +892,7 @@ $('btn-save').addEventListener('click', async ()=>{
     webhook_url: $('cfg-webhook').value.trim(),   // 空串 = 清空告警地址
     webhook_type: $('cfg-webhook-type').value,
     pricing_overrides: pricing,
+    key_aliases: aliases,
   };
   try{
     await api('/api/config', patch, 'PUT');
@@ -831,6 +906,48 @@ $('btn-reset').addEventListener('click', async ()=>{
   if(!confirm('确认清空所有用量记录？此操作不可恢复。')) return;
   try{ await api('/api/reset', {}, 'POST'); toast('数据已清空'); refresh(); }catch(e){ toast('清空失败：'+e.message); }
 });
+
+/* ---------------- 外观：主题 / 强调色 ---------------- */
+const ACCENTS = ['#2DD4BF','#60A5FA','#A78BFA','#F59E0B','#F87171','#34D399','#F472B6','#38BDF8'];
+function currentScheme(){
+  const t = localStorage.getItem('tl_theme') || 'dark';
+  if(t === 'auto') return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  return t;
+}
+function applyTheme(){
+  document.documentElement.dataset.theme = currentScheme();
+  document.documentElement.style.setProperty('--main', localStorage.getItem('tl_accent') || '#2DD4BF');
+  const b = $('btn-theme');
+  if(b) b.textContent = currentScheme() === 'light' ? '暗色' : '亮色';
+  // 已渲染的图表销毁重建，让配色跟随主题与强调色
+  if(chart){ chart.dispose(); chart = null; renderChart(__ts); }
+  if(rankChart){ rankChart.dispose(); rankChart = null; renderRank(__rank); }
+}
+function setAccent(c){
+  localStorage.setItem('tl_accent', c);
+  const i = $('set-accent'); if(i) i.value = c;
+  applyTheme();
+}
+function buildAccentRow(){
+  const row = $('accent-row'); if(!row) return;
+  row.innerHTML = ACCENTS.map(c =>
+    `<button type="button" class="accent-dot" data-c="${c}" style="background:${c}" title="强调色 ${c}"></button>`
+  ).join('') + `<input type="color" id="set-accent" value="${esc(localStorage.getItem('tl_accent') || '#2DD4BF')}" style="width:34px;height:26px;padding:1px" title="自定义强调色">`;
+  row.querySelectorAll('.accent-dot').forEach(b => b.addEventListener('click', () => setAccent(b.dataset.c)));
+  $('set-accent').addEventListener('input', e => setAccent(e.target.value));
+}
+$('btn-theme').addEventListener('click', () => {
+  localStorage.setItem('tl_theme', currentScheme() === 'light' ? 'dark' : 'light');
+  applyTheme();
+});
+$('set-theme').addEventListener('change', e => {
+  localStorage.setItem('tl_theme', e.target.value); applyTheme();
+});
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if((localStorage.getItem('tl_theme') || 'dark') === 'auto') applyTheme();
+});
+applyTheme();
+buildAccentRow();
 
 /* 轮询刷新 */
 refresh();

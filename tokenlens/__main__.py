@@ -400,6 +400,42 @@ def cmd_doctor(args):
     return 0 if ok else 1
 
 
+def cmd_onboard(args):
+    """扫描本机 AI 应用并接入监视。"""
+    from .onboard import APPS, detect, unwire, wire
+    cfg = Config.load(args.config)
+    if args.unwire is not None:
+        ids = [args.unwire] if args.unwire != "*" else [a.id for a in APPS]
+        for app_id in ids:
+            print(unwire(app_id, cfg))
+        return
+    if args.app:
+        print(wire(args.app, cfg))
+        return
+    rows = detect(cfg)
+    if args.auto:
+        for r in rows:
+            if r["auto"] and r["status"] == "可接入":
+                print(wire(r["id"], cfg))
+        rows = detect(cfg)
+    table = [[r["name"], r["id"], r["status"],
+              "自动" if r["auto"] else ("不支持" if r["note"] else "手动")]
+             for r in rows if r["status"] != "未安装"]
+    if table:
+        _table(["应用", "ID", "状态", "接入方式"], table, ["l", "l", "l", "l"])
+    print(f"\n代理地址: {cfg.proxy_base}   仪表盘: http://127.0.0.1:{cfg.port}")
+    for r in rows:
+        if r["status"] == "未安装":
+            continue
+        app = next(a for a in APPS if a.id == r["id"])
+        steps = app.steps(cfg)
+        if steps:
+            print(f"\n[{r['name']}]{'（' + r['note'] + '）' if r['note'] else ''}")
+            for s in steps:
+                print(f"  {s}")
+    print("\n还原自动改动: tokenlens onboard --unwire [应用id]")
+
+
 def build_parser():
     p = argparse.ArgumentParser(
         prog="tokenlens",
@@ -414,6 +450,7 @@ def build_parser():
   tokenlens import-csv usage.csv              导入 CSV（多机合并去重）
   tokenlens seed-demo                         灌入演示数据
   tokenlens live                              实时查看近 60 秒流量
+  tokenlens onboard --auto                    接入本机 AI 应用
   tokenlens prune --days 90                   清理 90 天前的记录
   tokenlens config set budget_daily 5         修改日预算
   tokenlens config get dashboard_token        查看访问令牌
@@ -496,6 +533,13 @@ def build_parser():
     s = sub.add_parser("live", help="实时查看近 N 秒流量（默认 60 秒）")
     s.add_argument("--window", type=int, default=60, help="统计窗口秒数")
     s.set_defaults(func=cmd_live)
+
+    s = sub.add_parser("onboard", help="扫描本机 AI 应用并接入监视")
+    s.add_argument("--auto", action="store_true", help="对支持安全改写的应用自动写入（先备份，可还原）")
+    s.add_argument("--app", default=None, help="只处理指定应用 id（如 claude-code）")
+    s.add_argument("--unwire", nargs="?", const="*", default=None, metavar="APP",
+                   help="还原自动写入的改动（默认全部）")
+    s.set_defaults(func=cmd_onboard)
 
     s = sub.add_parser("doctor", help="环境自检")
     s.set_defaults(func=cmd_doctor)

@@ -30,6 +30,8 @@ jobs:
           python -m mypy tokenlens/ --ignore-missing-imports
       - name: 单元测试
         run: python scripts/unit_test.py
+      - name: onboard/目录测试
+        run: python scripts/onboard_test.py
       - name: 端到端冒烟测试
         run: python scripts/smoke_test.py
 

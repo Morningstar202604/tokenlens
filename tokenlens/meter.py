@@ -35,6 +35,24 @@ _PROVIDER_DOMAINS = {
     "together.xyz": "together",
     "openrouter.ai": "openrouter",
     "ollama.com": "ollama",
+    # 与 config.py 的 37 家目录保持同步
+    "mistral.ai": "mistral",
+    "minimax.chat": "minimax",
+    "minimaxi.com": "minimax",
+    "stepfun.com": "stepfun",
+    "baichuan-ai.com": "baichuan",
+    "lingyiwanwu.com": "yi",
+    "modelscope.cn": "modelscope",
+    "baidubce.com": "qianfan",
+    "sensenova.cn": "sensenova",
+    "xf-yun.com": "spark",
+    "360.cn": "ai360",
+    "cerebras.ai": "cerebras",
+    "nvidia.com": "nvidia",
+    "deepinfra.com": "deepinfra",
+    "cohere.ai": "cohere",
+    "cohere.com": "cohere",
+    "huggingface.co": "huggingface",
 }
 
 

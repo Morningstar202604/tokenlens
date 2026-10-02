@@ -191,6 +191,10 @@ def register_proxy(app: FastAPI, cfg: Config, meter: Meter, client: httpx.AsyncC
             api_key = auth[7:].strip()
         else:
             api_key = auth.strip()
+        if not api_key:
+            # Anthropic 原生(x-api-key) / Azure(api-key) 风格：仅取指纹，不落明文
+            api_key = (request.headers.get("x-api-key", "").strip()
+                       or request.headers.get("api-key", "").strip())
 
         ctx = ProxyContext(
             provider=provider_from_url(base), upstream=base, model=model,

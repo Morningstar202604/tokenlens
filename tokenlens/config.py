@@ -22,13 +22,46 @@ class Config:
 
     # 上游别名 -> base url。请求 /v1/<alias>/chat/completions 会被转发到对应上游
     upstreams: Dict[str, str] = field(default_factory=lambda: {
+        # 国外
         "openai": "https://api.openai.com/v1",
+        "anthropic": "https://api.anthropic.com",
+        "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "xai": "https://api.x.ai/v1",
+        "groq": "https://api.groq.com/openai/v1",
+        "mistral": "https://api.mistral.ai/v1",
+        "openrouter": "https://openrouter.ai/api/v1",
+        "together": "https://api.together.xyz/v1",
+        "fireworks": "https://api.fireworks.ai/inference/v1",
+        "perplexity": "https://api.perplexity.ai",
+        "cerebras": "https://api.cerebras.ai/v1",
+        "nvidia": "https://integrate.api.nvidia.com/v1",
+        "deepinfra": "https://api.deepinfra.com/v1/openai",
+        "cohere": "https://api.cohere.ai/compatibility/v1",
+        "huggingface": "https://router.huggingface.co/v1",
+        # 国内
         "deepseek": "https://api.deepseek.com/v1",
         "moonshot": "https://api.moonshot.cn/v1",
         "zhipu": "https://open.bigmodel.cn/api/paas/v4",
         "dashscope": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "anthropic": "https://api.anthropic.com",
+        "ark": "https://ark.cn-beijing.volces.com/api/v3",
+        "qianfan": "https://qianfan.baidubce.com/v2",
+        "hunyuan": "https://api.hunyuan.cloud.tencent.com/v1",
+        "minimax": "https://api.minimax.chat/v1",
+        "stepfun": "https://api.stepfun.com/v1",
+        "baichuan": "https://api.baichuan-ai.com/v1",
+        "yi": "https://api.lingyiwanwu.com/v1",
+        "modelscope": "https://api-inference.modelscope.cn/v1",
         "siliconflow": "https://api.siliconflow.cn/v1",
+        "spark": "https://spark-api-open.xf-yun.com/v1",
+        "sensenova": "https://token.sensenova.cn/v1",
+        "ai360": "https://api.360.cn/v1",
+        # 本地推理运行时
+        "ollama": "http://127.0.0.1:11434/v1",
+        "lmstudio": "http://127.0.0.1:1234/v1",
+        "vllm": "http://127.0.0.1:8000/v1",
+        "llamacpp": "http://127.0.0.1:8080/v1",
+        "jan": "http://127.0.0.1:1337/v1",
+        "xinference": "http://127.0.0.1:9997/v1",
     })
 
     # 未指定别名时的默认上游
@@ -81,6 +114,9 @@ class Config:
 
     # 数据保留天数（0 = 不清理）。prune 命令按此清理过期记录
     retention_days: int = 0
+
+    # 密钥别名：{"sha256指纹前12位": "应用名"}，仪表盘按应用显示与统计
+    key_aliases: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> "Config":

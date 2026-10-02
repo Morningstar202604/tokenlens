@@ -36,4 +36,4 @@ Issues = "https://gitcode.com/badhope/tokenlens/issues"
 packages = ["tokenlens"]
 
 [tool.setuptools.package-data]
-tokenlens = ["web/*", "pricing_data.json"]
+tokenlens = ["web/*", "web/assets/*", "pricing_data.json"]

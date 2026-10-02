@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 build/
+build-pyinstaller/
 dist/
 .venv/
 venv/
@@ -20,3 +21,4 @@ tokenlens-usage.csv
 .idea/
 .DS_Store
 *.log
+.aqg/
