@@ -3,6 +3,24 @@
 所有显著变更记录在本文件。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-10-03
+
+### 新增
+- 本地应用用量检测：零侵入只读扫描本机 AI 应用会话记录，按 request_id 幂等导入账本——
+  OpenCode（本地 SQLite session 表）、ZCode（模型 IO 日志）、Claude Code（projects 会话
+  JSONL）；服务启动与每 10 分钟自动扫描，仪表盘一键「扫描本机应用记录」，
+  CLI `tokenlens scan-local`，`TOKENLENS_LOCAL_SCAN=0` 可关闭
+- 仪表盘「本机 AI 应用」状态条：展示每个已装应用的计量方式（本地已计量条数 /
+  可自动接入 / 手动接入 / 不计量），数据来自 onboard 检测与各扫描器入库计数（GET /api/apps）
+- Windows 托盘常驻：双击 exe 隐藏控制台缩到系统托盘，左键开仪表盘、右键退出；
+  终端运行与 CLI 子命令不受影响，托盘依赖缺失自动回退控制台模式（可选依赖 `tray` extra）
+
+### 修复
+- 仪表盘「先看演示数据」改为直接渲染前端内置数据集，不再调用 /api/seed 往真实账本写入假记录；
+  演示态带全宽横幅与「演示数据」水印，点任意时间范围 / 切换维度或筛选即退出
+- 仪表盘 HTML 响应补 `Cache-Control: no-cache`，升级后浏览器不再使用旧缓存页面
+- `reset` 输出提示本机应用记录会被自动扫描重新导入的行为
+
 ## [1.2.1] - 2026-09-30 ~ 2026-10-02
 
 ### 新增

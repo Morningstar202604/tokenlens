@@ -153,6 +153,15 @@ APPS: List[App] = [
         ],
     ),
     App(
+        id="zcode", name="ZCode",
+        installed=lambda home: (home / ".zcode" / "cli").exists(),
+        primary=lambda home: home / ".zcode" / "cli" / "rollout",
+        note="本地模型调用日志已自动计量，无需接入",
+        steps=lambda cfg: [
+            "无需接入：本地 rollout 日志由 tokenlens scan-local 自动扫描计量",
+        ],
+    ),
+    App(
         id="qwen-code", name="Qwen Code",
         installed=lambda home: (home / ".qwen").exists(),
         primary=lambda home: home / ".qwen",

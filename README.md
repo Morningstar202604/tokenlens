@@ -11,7 +11,7 @@ Zero-intrusion transparent proxy · Local-first · 37+ upstreams · 5-minute set
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](scripts/smoke_test.py)
-[![Version](https://img.shields.io/badge/version-1.2.1-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.0-orange)](CHANGELOG.md)
 
 [Website](https://x33834.github.io/tokenlens/) ｜ [中文](README.zh-CN.md) ｜ [日本語](README.ja.md) ｜ [Changelog](CHANGELOG.md)
 
@@ -106,6 +106,9 @@ Design notes worth reading:
 | Budget | daily / monthly, 80% alert, 402 hard block; DingTalk / WeCom / Feishu webhooks |
 | Data | CSV export (formula-injection safe) / JSONL export / idempotent CSV merge; retention auto-prune |
 | Onboarding | `tokenlens onboard` scans local AI apps and wires them safely (Claude Code, reversible); SDK instrumentation (decorator / openai patch) |
+| Local usage detection | zero-intrusion read-only scan of local AI app records — OpenCode (SQLite), ZCode (model IO logs), Claude Code (session JSONL) — idempotently imported by `request_id`; auto-scan at startup & every 10 min, or `tokenlens scan-local` / dashboard button (`TOKENLENS_LOCAL_SCAN=0` to disable) |
+| App panel | dashboard strip listing every installed AI app and how it is metered (local records count / auto-wire / manual / not meterable) |
+| Windows tray | double-click the exe to run in the system tray (open dashboard / quit); terminal runs and CLI subcommands unchanged; falls back to console mode without tray deps |
 | Security | local-first; dashboard_token auth; CSRF protection; DNS-rebinding protection; request size caps; full analysis in [docs/ANALYSIS.md](docs/ANALYSIS.md) |
 
 ## Quality
@@ -113,6 +116,8 @@ Design notes worth reading:
 ```
 Unit tests          59/59   (metering / storage / auth / pricing / SDK)
 Onboard tests       26/26   (wire / unwire / aliases)
+Local scan tests    23/23   (parsers / idempotent import / bad data)
+Apps API tests      7/7     (metering flags / record counts)
 End-to-end smoke    52/52   (real processes: proxy → mock upstream → assert ledger)
 Type check          mypy 0 errors (CI gate)
 Adversarial suite   31 checks (SSRF / injection / CSRF / concurrency / metering accuracy)

@@ -11,7 +11,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](scripts/smoke_test.py)
-[![Version](https://img.shields.io/badge/version-1.2.1-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.0-orange)](CHANGELOG.md)
 
 [English](README.md) ｜ [日本語](README.ja.md) ｜ [官网](https://x33834.github.io/tokenlens/zh/) ｜ [更新日志](CHANGELOG.md)
 
@@ -106,6 +106,9 @@ http://127.0.0.1:8787
 | 预算 | 日 / 月预算，80% 告警，超限 402；钉钉 / 企业微信 / 飞书 Webhook |
 | 数据 | CSV 导出（防公式注入）/ JSONL 导出 / CSV 多机幂等导入；retention 自动清理 |
 | 接入 | `tokenlens onboard` 扫描本机 AI 应用并自动改写（Claude Code，可还原）；SDK 埋点（装饰器 / openai 补丁） |
+| 本地用量检测 | 零侵入只读扫描本机应用会话记录——OpenCode（SQLite）、ZCode（模型 IO 日志）、Claude Code（会话 JSONL），按 request_id 幂等导入；启动与每 10 分钟自动扫描，也可 `tokenlens scan-local` 或仪表盘一键（`TOKENLENS_LOCAL_SCAN=0` 关闭） |
+| 本机应用面板 | 仪表盘状态条：每个已装应用的计量方式一目了然（本地已计量条数 / 可自动接入 / 手动接入 / 不计量） |
+| Windows 托盘 | 双击 exe 缩到系统托盘常驻（左键开仪表盘 / 右键退出）；终端运行与 CLI 子命令不变，缺托盘依赖自动回退控制台 |
 | 安全 | 本机优先；dashboard_token 鉴权；CSRF 防护；DNS rebinding 防护；请求体大小上限；完整分析见 [docs/ANALYSIS.md](docs/ANALYSIS.md) |
 
 ## 质量与测试
@@ -113,6 +116,8 @@ http://127.0.0.1:8787
 ```
 单元测试        59/59   （计量 / 存储 / 鉴权 / 价格 / SDK）
 onboard 测试    26/26   （接入 / 还原 / 别名）
+本地扫描测试    23/23   （解析 / 幂等导入 / 坏数据）
+应用面板测试    7/7     （计量标记 / 记录数）
 端到端冒烟      52/52   （真实进程：代理 → mock 上游 → 断言账本）
 类型检查        mypy 0 error（CI 门禁）
 攻击回归        31 项    （SSRF / 注入 / CSRF / 并发 / 计量精度）

@@ -60,10 +60,18 @@
   .icon-btn:hover{color:var(--text);border-color:var(--main)}
   .demo-tag{display:none;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);color:var(--warn);border-radius:8px;padding:4px 10px;font-size:12px}
   body.is-demo .demo-tag{display:inline-block}
+  .demo-banner{display:none;background:rgba(245,158,11,.12);border-bottom:1px solid rgba(245,158,11,.45);color:var(--warn);font-size:12.5px;padding:7px 18px;text-align:center;letter-spacing:.02em}
+  body.is-demo .demo-banner{display:block}
+  body.is-demo .wrap::after{content:'演示数据';position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:min(18vw,160px);font-weight:800;color:rgba(148,163,184,.07);pointer-events:none;z-index:9999;letter-spacing:.1em}
 
   /* ---------- 接入引导 ---------- */
   .onboard{background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
   .onboard[hidden]{display:none}
+  .apps-strip{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;align-items:center}
+  .apps-strip[hidden]{display:none}
+  .app-chip{background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:5px 12px;font-size:12px;cursor:default}
+  .app-chip.ok{border-color:rgba(45,212,191,.4);color:var(--main)}
+  .app-chip.dim{opacity:.45}
   .onboard code{background:#0B0F17;border:1px solid var(--line);border-radius:6px;padding:4px 10px;font-size:12.5px;color:var(--main)}
   .onboard .mini{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:5px 12px;font-size:12.5px;cursor:pointer;font-family:inherit}
   .onboard .mini:hover{color:var(--text);border-color:var(--main)}
@@ -220,6 +228,7 @@
 </head>
 <body>
 <div class="wrap">
+  <div class="demo-banner">内置演示数据 · 非真实账本 — 点任意时间范围退出演示</div>
 
   <!-- ============ 顶栏 ============ -->
   <header class="topbar">
@@ -260,8 +269,12 @@
     <span>还没有调用记录，把客户端 base_url 指到本地代理即可开始记账：</span>
     <code id="onboard-cmd">export OPENAI_BASE_URL=http://127.0.0.1:8787/v1</code>
     <button class="mini" id="btn-copy" type="button">复制命令</button>
+    <button class="mini" id="btn-scan" type="button">扫描本机应用记录</button>
     <button class="mini" id="btn-seed" type="button">先看演示数据</button>
   </div>
+
+  <!-- ============ 本机 AI 应用状态条 ============ -->
+  <div id="apps-strip" class="apps-strip" hidden></div>
 
   <!-- ============ KPI：钱为主线 ============ -->
   <div class="grid kpis" id="kpis">
@@ -437,7 +450,7 @@ const DEMO_DATA = {"24h":{"stats":{"requests":292,"errors":8,"prompt_tokens":192
 
 const S = { range:'24h', project:'', model:'', metric:'cost', dim:'model',
             status:'', provider:'', session:'', sort:'ts', dir:-1, page:0, pageSize:20,
-            offline:false };
+            offline:false, demo:false };
 const RATE = 7.2;
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -479,16 +492,18 @@ function qs(extra){
 }
 
 async function loadAll(){
+  if(S.demo) return pickDemo();
   try{
-    const [stats, ts, rank, recent, budget, filters, alerts] = await Promise.all([
+    const [stats, ts, rank, recent, budget, filters, alerts, apps] = await Promise.all([
       api('/api/stats?'+qs()), api('/api/timeseries?'+qs()),
       api('/api/breakdown?field='+S.dim+'&'+qs()), api('/api/recent?limit=500&'+qs()),
-      api('/api/budget'), api('/api/filters'), api('/api/alerts?limit=10')
+      api('/api/budget'), api('/api/filters'), api('/api/alerts?limit=10'),
+      api('/api/apps').then(r=>(r&&r.apps)||null).catch(()=>null)
     ]);
     let live = {rpm:0,tokens:0};
     try{ live = await api('/api/live?window=60'); }catch(e){}
     if(S.offline){ S.offline = false; document.body.classList.remove('is-demo'); toast('后端已恢复，已切回真实数据'); }
-    return {stats, ts, rank, recent, budget, filters, alerts, live};
+    return {stats, ts, rank, recent, budget, filters, alerts, live, apps};
   }catch(e){
     if(String(e.message||'').includes('401')) throw e;  // 需要令牌不是故障，别拿演示数据顶替
     const demo = pickDemo();
@@ -520,6 +535,7 @@ async function refresh(){
   renderTable(d.recent || []);
   renderFilters(d.filters);
   renderAlerts(d.alerts);
+  renderApps(d.apps);
   if(d.live){ $('live-rpm').textContent = d.live.rpm ?? 0; $('live-tokens').textContent = fmt(d.live.tokens); }
   $('onboard').hidden = !((d.stats||{}).requests === 0) || S.offline;
   if(/^https?:$/.test(location.protocol)){
@@ -713,7 +729,7 @@ function applyTable(){
         <path d="M18 24h28M18 32h28M18 40h14" stroke="#5F6B81" stroke-width="2.5" stroke-linecap="round"/>
         <path d="M32 50l5-5 3 3 7-8" fill="none" stroke="#2DD4BF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg><br/>
-      这个范围还没有调用记录 — 把 base_url 指向代理发一次请求，<br/>或点顶部「先看演示数据」直接体验
+      这个范围还没有调用记录 — 把 base_url 指向代理发一次请求，<br/>或点「扫描本机应用记录」导入 OpenCode 等本地会话用量，或点「先看演示数据」体验
     </td></tr>`; return;
   }
   $('rows').innerHTML = pageRows.map(r=>{
@@ -760,6 +776,27 @@ function renderFilters(f){
   psel.value = S.provider;
 }
 
+/* 本机 AI 应用状态条：已计量应用显示记录数，未计量显示接入方式 */
+function renderApps(apps){
+  const el = $('apps-strip');
+  if(!el) return;
+  if(!Array.isArray(apps) || !apps.length || S.offline || S.demo){ el.hidden = true; return; }
+  const chip = a => {
+    let cls = 'app-chip', txt = a.name || a.id;
+    if(a.metered){
+      if(a.records > 0){ cls += ' ok'; txt += ` · 本地已计量 ${fmt(a.records)} 条`; }
+      else txt += ' · 本地暂无用量';
+    } else if(a.status === '已接入'){ cls += ' ok'; txt += ' · 已接入代理'; }
+    else if(a.status === '未安装'){ cls += ' dim'; }
+    else if(a.status === '可接入'){ txt += ' · 可自动接入'; }
+    else if(a.status === '可接入(手动)'){ txt += ' · 手动接入'; }
+    const tip = [a.status !== '未安装' ? a.path : '', a.note || ''].filter(Boolean).join(' — ');
+    return `<span class="${cls}"${tip ? ` title="${esc(tip)}"` : ''}>${esc(txt)}</span>`;
+  };
+  el.innerHTML = apps.map(chip).join('');
+  el.hidden = false;
+}
+
 function renderAlerts(alerts){
   __alerts = alerts||[];
   const host = $('alerts-card');
@@ -782,12 +819,12 @@ function bindSeg(id, key, mapKey, cb){
     cb && cb();
   });
 }
-bindSeg('range','range','r', ()=>{ S.page=0; refresh(); });
+bindSeg('range','range','r', ()=>{ exitDemo(); S.page=0; refresh(); });
 bindSeg('metric','metric','m', ()=>renderChart(__ts));
-bindSeg('dim','dim','d', ()=>{ S.page=0; refresh(); });
+bindSeg('dim','dim','d', ()=>{ exitDemo(); S.page=0; refresh(); });
 
-$('f-project').addEventListener('change', e=>{ S.project=e.target.value; S.page=0; refresh(); });
-$('f-model').addEventListener('change', e=>{ S.model=e.target.value; S.page=0; refresh(); });
+$('f-project').addEventListener('change', e=>{ exitDemo(); S.project=e.target.value; S.page=0; refresh(); });
+$('f-model').addEventListener('change', e=>{ exitDemo(); S.model=e.target.value; S.page=0; refresh(); });
 $('f-session').addEventListener('change', e=>{ S.session=e.target.value; S.page=0; refresh(); });
 $('f-status').addEventListener('change', e=>{ S.status=e.target.value; S.page=0; applyTable(); });
 $('f-provider').addEventListener('change', e=>{ S.provider=e.target.value; S.page=0; applyTable(); });
@@ -813,14 +850,31 @@ $('btn-copy').addEventListener('click', async ()=>{
   try{ await navigator.clipboard.writeText($('onboard-cmd').textContent); toast('命令已复制'); }
   catch(e){ toast('复制失败，请手动复制'); }
 });
-$('btn-seed').addEventListener('click', async ()=>{
-  if(S.offline){ toast('离线演示模式无需灌数据'); return; }
+$('btn-seed').addEventListener('click', ()=>{
+  /* 演示只走前端内置数据集，绝不写进真实账本（旧版调 /api/seed 会把
+     400 条假记录落库，混进真实用量）。demo 与 offline 分离：
+     后端健康也不自愈退出；点任意时间范围即退出演示。 */
+  S.demo = true;
+  document.body.classList.add('is-demo');
+  toast('已切换到内置演示数据（不写账本）。点任意时间范围退出演示。');
+  refresh();
+});
+function exitDemo(){
+  if(!S.demo) return;
+  S.demo = false;
+  document.body.classList.remove('is-demo');
+}
+
+/* 扫描本机应用本地记录（OpenCode 等）→ 幂等导入真实账本 */
+$('btn-scan').addEventListener('click', async ()=>{
+  if(S.offline){ toast('离线演示模式不可用'); return; }
   try{
-    toast('正在生成演示数据…');
-    await api('/api/seed?n=400', {}, 'POST');
-    toast('演示数据已生成');
-    refresh();
-  }catch(e){ toast('生成失败：'+e.message); }
+    toast('正在扫描本机应用记录…');
+    exitDemo();
+    const r = await api('/api/scan-local', {}, 'POST');
+    toast(`扫描完成：导入 ${r.imported||0} 条，跳过重复 ${r.skipped||0} 条`);
+    S.page=0; refresh();
+  }catch(e){ toast('扫描失败：'+e.message); }
 });
 
 /* 预算修改 → 打开设置抽屉并聚焦 */

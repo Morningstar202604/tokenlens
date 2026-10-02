@@ -12,7 +12,8 @@ from tokenlens.__main__ import main
 
 _SUBCOMMANDS = {
     "start", "stats", "top", "export", "import-csv", "pricing", "budget",
-    "alerts", "seed-demo", "reset", "prune", "config", "live", "onboard",
+    "alerts", "seed-demo", "scan-local", "reset", "prune", "config", "live",
+            "onboard",
     "doctor",
 }
 

@@ -358,4 +358,25 @@ def create_api(store: Store, meter: Meter) -> APIRouter:
         count = seed_db(store, meter, n=n, days=7)
         return {"ok": True, "inserted": count}
 
+    @router.get("/apps")
+    def apps_status():
+        """本机 AI 应用清单：onboard 探测状态 + 各本地扫描器已入库记录数。"""
+        from .localscan import SCAN_KEY_HASHES
+        from .onboard import detect
+        rows = detect(cfg)
+        for r in rows:
+            metered = r["id"] in SCAN_KEY_HASHES
+            r["metered"] = metered
+            r["records"] = store.count_by_key(SCAN_KEY_HASHES[r["id"]]) if metered else 0
+        return {"apps": rows}
+
+    @router.post("/scan-local", dependencies=[Depends(require_write)])
+    def scan_local():
+        from .localscan import import_local
+        result = import_local(cfg, store)
+        return {"ok": True,
+                "imported": sum(v["imported"] for v in result.values()),
+                "skipped": sum(v["skipped"] for v in result.values()),
+                "detail": result}
+
     return router

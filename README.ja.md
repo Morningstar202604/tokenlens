@@ -11,7 +11,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](scripts/smoke_test.py)
-[![Version](https://img.shields.io/badge/version-1.2.1-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.0-orange)](CHANGELOG.md)
 
 [Website](https://x33834.github.io/tokenlens/) ｜ [English](README.md) ｜ [中文](README.zh-CN.md) ｜ [Changelog](CHANGELOG.md)
 
@@ -83,6 +83,9 @@ http://127.0.0.1:8787
 - **ストリーミングも完全計測**：SSE をチャンク単位で解析し、`include_usage` を自動注入して実際の使用量を取得
 - **予算ブロックは転送前**：超過リクエストは 402 で拒否し、上流のクォータを消費しない
 - **キーはフィンガープリントのみ保存**：SHA-256 の先頭 12 文字。アプリ名にマッピング可能
+- **ローカル使用量の自動検出**：OpenCode（SQLite）・ZCode（モデル IO ログ）・Claude Code（セッション JSONL）のローカル記録を読み取り専用で走査し、`request_id` 冪等で台帳に取り込み。起動時と 10 分ごとに自動スキャン、`tokenlens scan-local` / ダッシュボードのワンクリックにも対応（`TOKENLENS_LOCAL_SCAN=0` で無効化）
+- **アプリパネル**：ダッシュボードに各アプリの計測方法を表示（ローカル計測レコード数 / 自動接続可 / 手動 / 計測不可）
+- **Windows トレイ常駐**：exe をダブルクリックするとトレイに格納（左クリックでダッシュボード、右クリックで終了）。ターミナル実行や CLI サブコマンドは従来どおり
 
 ## 既知の限界（正直に）
 

@@ -10,11 +10,14 @@ A local-first transparent proxy that meters every AI call (tokens, cost, latency
 - 仪表盘 Dashboard: 今日/本月花费、预算进度、成本构成、调用明细、导出 CSV/JSONL
 - 预算 Budget: 阈值告警 + 超限 402 硬拦截 + 钉钉/企微/飞书 Webhook
 - 隐私 Privacy: 只记元数据，prompt/响应不落库；API Key 仅存 12 位 SHA-256 指纹；本地 SQLite
+- 本地用量检测 Local scan: 只读扫描 OpenCode / ZCode / Claude Code 本地会话记录，幂等导入账本；启动与每 10 分钟自动扫描，`tokenlens scan-local` / 仪表盘一键（`TOKENLENS_LOCAL_SCAN=0` 关闭）
+- 本机应用面板 App panel: 仪表盘状态条列出每个已装应用的计量方式（本地已计量条数 / 接入方式）
+- Windows 托盘 Tray: 双击 exe 常驻系统托盘（开仪表盘 / 退出），CLI 子命令不受影响
 
 ## 部署 Deploy
 - pip: `pip install . && python -m tokenlens start` → http://127.0.0.1:8787
 - Docker: `docker compose up -d`
-- Windows: 双击 TokenLens.exe
+- Windows: 双击 TokenLens.exe（托盘常驻）
 
 ## 链接 Links
 - 源码 Source: https://github.com/x33834/tokenlens

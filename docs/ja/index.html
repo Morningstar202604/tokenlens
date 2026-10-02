@@ -32,7 +32,7 @@
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Windows, macOS, Linux",
   "description": "Local-first transparent proxy that meters every AI call (tokens, cost, latency) with a spend-ledger dashboard and hard budget enforcement.",
-  "softwareVersion": "1.2.1",
+  "softwareVersion": "1.3.0",
   "license": "https://opensource.org/licenses/MIT",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
   "author": {"@type": "Person", "name": "badhope"},
@@ -213,8 +213,16 @@
       </div>
       <div class="feat">
         <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 20v-6M12 10V4M6 20v-4M6 12V4M18 20v-8M18 8V4"/></svg>軽量で堅実</h3>
-        <p>単一プロセス、純 Python、外部サービス不要。内蔵デモデータでオフラインでも動作。3スイート137テスト。</p>
+        <p>単一プロセス、純 Python、外部サービス不要。内蔵デモデータでオフラインでも動作。6スイート178テスト。</p>
+      
+      <div class="feat">
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg>接続なしで使用量を検出</h3>
+        <p>OpenCode・ZCode・Claude Code のローカルセッション記録を読み取り専用で走査（冪等）し自動計測 — base_url の変更も API キーも不要。起動時と 10 分ごとに自動スキャン。</p>
       </div>
+      <div class="feat">
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2DD4BF" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>Windows トレイ常駐</h3>
+        <p>exe をダブルクリックするとトレイに格納 — 左クリックでダッシュボード、右クリックで終了。各アプリの計測方法はダッシュボードの一枚のストリップに表示。</p>
+      </div></div>
     </div>
   </div>
 </section>

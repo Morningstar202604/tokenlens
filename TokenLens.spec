@@ -25,6 +25,8 @@ a = Analysis(
         'uvicorn.lifespan.on',
         'uvicorn.lifespan.off',
         'anyio._backends._asyncio',
+        'pystray',
+        'pystray._win32',
     ],
     excludes=['tiktoken', 'pytest', 'mypy', 'pyinstaller'],
     noarchive=False,

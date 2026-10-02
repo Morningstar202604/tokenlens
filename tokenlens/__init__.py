@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-__version__ = "1.2.1"  # 与 pyproject.toml 保持一致
+__version__ = "1.3.0"  # 与 pyproject.toml 保持一致
 
 from .config import Config
 from .meter import Meter

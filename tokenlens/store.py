@@ -349,6 +349,11 @@ class Store:
                 "INSERT INTO alerts(ts, scope, spent, limit_usd, message) VALUES(?,?,?,?,?)",
                 (time.time(), scope, spent, limit_usd, message))
 
+    def count_by_key(self, key_hash: str) -> int:
+        """某来源（key_hash）已入库的记录数，用于本机应用面板展示。"""
+        return self._local.execute(
+            "SELECT COUNT(*) FROM requests WHERE key_hash = ?", (key_hash,)).fetchone()[0]
+
     def clear(self):
         with self._write() as cur:
             cur.execute("DELETE FROM requests")

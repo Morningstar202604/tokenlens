@@ -71,6 +71,9 @@ def cmd_start(args):
     if args.monthly is not None:
         cfg.budget_monthly = args.monthly
     from .server import run
+    from .tray import maybe_run_tray
+    if maybe_run_tray(cfg):
+        return
     run(cfg)
 
 
@@ -84,7 +87,7 @@ def cmd_stats(args):
         return
     if not s_data["requests"]:
         print("暂无调用记录。先跑 `python -m tokenlens start` 把 base_url 指向代理，"
-              "或 `python -m tokenlens seed-demo` 灌入演示数据。")
+              "或 `python -m tokenlens scan-local` 导入本机应用记录。")
         return
     print(f"\n范围: {args.range}" + (f"  项目: {args.project}" if args.project else "")
           + (f"  模型: {args.model}" if args.model else ""))
@@ -310,6 +313,17 @@ def cmd_seed(args):
     seed_cli(args)
 
 
+def cmd_scan_local(args):
+    from .localscan import import_local
+    cfg = Config.load(args.config)
+    store, _ = _ctx(cfg)
+    result = import_local(cfg, store, app=args.app or "")
+    for name, r in result.items():
+        print(f"[{name}] 发现 {r['found']} 条，导入 {r['imported']} 条，跳过重复 {r['skipped']} 条")
+    if not sum(r["imported"] for r in result.values()):
+        print("没有新记录（重复扫描幂等，不会重复计费）。")
+
+
 def cmd_reset(args):
     cfg = Config.load(args.config)
     store, _ = _ctx(cfg)
@@ -320,6 +334,8 @@ def cmd_reset(args):
             return
     store.clear()
     print("已清空用量记录")
+    print("提示：本机应用记录（OpenCode / ZCode / Claude Code）会在下次自动扫描时重新导入，"
+          "如需彻底清空请用 TOKENLENS_LOCAL_SCAN=0 关闭扫描或同时清理对应应用的本地数据。")
 
 
 def cmd_prune(args):
@@ -474,6 +490,7 @@ def build_parser():
   tokenlens export --out usage.csv            导出 CSV
   tokenlens import-csv usage.csv              导入 CSV（多机合并去重）
   tokenlens seed-demo                         灌入演示数据
+  tokenlens scan-local                        扫描本机应用记录导入账本（幂等）
   tokenlens live                              实时查看近 60 秒流量
   tokenlens onboard --auto                    接入本机 AI 应用
   tokenlens prune --days 90                   清理 90 天前的记录
@@ -539,6 +556,10 @@ def build_parser():
     s.add_argument("--n", type=int, default=600)
     s.add_argument("--days", type=int, default=7)
     s.set_defaults(func=cmd_seed)
+
+    s = sub.add_parser("scan-local", help="扫描本机应用本地记录（OpenCode 等）并导入账本")
+    s.add_argument("--app", default="", help="只扫描指定应用（如 opencode）")
+    s.set_defaults(func=cmd_scan_local)
 
     s = sub.add_parser("reset", help="清空用量数据")
     s.add_argument("--yes", action="store_true")

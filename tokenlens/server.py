@@ -42,13 +42,15 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        from .localscan import start_autoscan
+        start_autoscan(cfg, store)  # 启动扫一次 + 每 10 分钟重扫（幂等去重）
         yield
         await client.aclose()
 
     app = FastAPI(
         title="TokenLens",
         description="AI Token 用量监控代理与仪表盘",
-        version="1.2.1",
+        version="1.3.0",
         lifespan=lifespan,
     )
 
@@ -80,11 +82,13 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/")
     def index():
-        return FileResponse(WEB_DIR / "index.html", media_type="text/html")
+        return FileResponse(WEB_DIR / "index.html", media_type="text/html",
+                            headers={"Cache-Control": "no-cache"})
 
     @app.get("/dashboard")
     def dashboard():
-        return FileResponse(WEB_DIR / "index.html", media_type="text/html")
+        return FileResponse(WEB_DIR / "index.html", media_type="text/html",
+                            headers={"Cache-Control": "no-cache"})
 
     @app.get("/favicon.ico")
     def favicon():

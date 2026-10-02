@@ -49,7 +49,8 @@ def main():
     for p in (Path(TMPDIR + "/tokenlens-smoke/usage.db"), Path(DB)):
         if p.exists():
             os.remove(p)
-    env = dict(os.environ, TOKENLENS_HOME=TMPDIR + "/tokenlens-smoke")
+    env = dict(os.environ, TOKENLENS_HOME=TMPDIR + "/tokenlens-smoke",
+               TOKENLENS_LOCAL_SCAN="0")  # 隔离：不把本机真实应用记录灌进 smoke 库
     # [9] SDK 段在进程内 import tokenlens：必须让本进程也指向 smoke 库，
     # 否则 Config.load() 会把演示记录写进真实 ~/.tokenlens/usage.db
     os.environ["TOKENLENS_HOME"] = TMPDIR + "/tokenlens-smoke"
