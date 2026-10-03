@@ -10,7 +10,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](scripts/smoke_test.py)
+[![Tests](https://img.shields.io/badge/tests-207%20passing-brightgreen)](scripts/smoke_test.py)
 [![Version](https://img.shields.io/badge/version-1.3.0-orange)](CHANGELOG.md)
 
 [English](README.md) ｜ [日本語](README.ja.md) ｜ [官网](https://x33834.github.io/tokenlens/zh/) ｜ [更新日志](CHANGELOG.md)
@@ -132,6 +132,7 @@ onboard 测试    26/26   （接入 / 还原 / 别名）
 ## 文档
 
 [更新日志](CHANGELOG.md) · [架构与安全分析](docs/ANALYSIS.md) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [中文官网](https://x33834.github.io/tokenlens/)
+镜像: [GitHub 镜像仓库](https://github.com/Morningstar202604/tokenlens) ｜ [Gitee](https://gitee.com/badhope/tokenlens) ｜ [GitCode](https://gitcode.com/badhope/tokenlens) ｜ [镜像站点](https://morningstar202604.github.io/tokenlens/)
 
 ## 许可
 

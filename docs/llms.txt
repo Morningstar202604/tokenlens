@@ -23,6 +23,7 @@ A local-first transparent proxy that meters every AI call (tokens, cost, latency
 - 中文 README: https://github.com/x33834/tokenlens/blob/main/README.zh-CN.md
 - 日本語 README: https://github.com/x33834/tokenlens/blob/main/README.ja.md
 - 下载 Download: https://github.com/x33834/tokenlens/releases/latest
+- 镜像 Mirror: https://github.com/Morningstar202604/tokenlens（站点 https://morningstar202604.github.io/tokenlens/）· https://gitee.com/badhope/tokenlens · https://gitcode.com/badhope/tokenlens
 - 更新日志 Changelog: https://github.com/x33834/tokenlens/blob/main/CHANGELOG.md
 - 架构图 Architecture: https://github.com/x33834/tokenlens/blob/main/docs/media/architecture.svg
 

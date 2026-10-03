@@ -10,10 +10,11 @@ Zero-intrusion transparent proxy · Local-first · 37+ upstreams · 5-minute set
 
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](scripts/smoke_test.py)
+[![Tests](https://img.shields.io/badge/tests-207%20passing-brightgreen)](scripts/smoke_test.py)
 [![Version](https://img.shields.io/badge/version-1.3.0-orange)](CHANGELOG.md)
 
 [Website](https://x33834.github.io/tokenlens/) ｜ [中文](README.zh-CN.md) ｜ [日本語](README.ja.md) ｜ [Changelog](CHANGELOG.md)
+Mirrors: [GitHub Mirror](https://github.com/Morningstar202604/tokenlens) ｜ [Gitee](https://gitee.com/badhope/tokenlens) ｜ [GitCode](https://gitcode.com/badhope/tokenlens) ｜ [Mirror Site](https://morningstar202604.github.io/tokenlens/)
 
 </div>
 
