@@ -6,9 +6,10 @@
 ## [1.3.0] - 2026-10-03
 
 ### 新增
-- 本地应用用量检测：零侵入只读扫描本机 AI 应用会话记录，按 request_id 幂等导入账本——
-  OpenCode（本地 SQLite session 表）、ZCode（模型 IO 日志）、Claude Code（projects 会话
-  JSONL）；服务启动与每 10 分钟自动扫描，仪表盘一键「扫描本机应用记录」，
+- 本地应用用量检测扩展到 10 个应用：在 OpenCode/ZCode/Claude Code 之外新增
+  Codex CLI（rollout token_count 增量）、Gemini CLI / Qwen Code / iFlow（chats 会话
+  tokens 摘要）、aider（.aider.llm.history 自记成本）、Cline / Roo Code（编辑器
+  globalStorage 任务记录，自记成本）；本机未安装或无会话数据时返回空不报错；服务启动与每 10 分钟自动扫描，仪表盘一键「扫描本机应用记录」，
   CLI `tokenlens scan-local`，`TOKENLENS_LOCAL_SCAN=0` 可关闭
 - 仪表盘「本机 AI 应用」状态条：展示每个已装应用的计量方式（本地已计量条数 /
   可自动接入 / 手动接入 / 不计量），数据来自 onboard 检测与各扫描器入库计数（GET /api/apps）
