@@ -8,6 +8,7 @@ A local-first transparent proxy that meters every AI call (tokens, cost, latency
 - 透明代理 Transparent proxy: OpenAI 兼容协议，SSE 流式转发，37+ 上游路径别名路由
 - 计量 Metering: 上游 usage 精确值 → tiktoken → 启发式（三级降级）；价格表同步自 LiteLLM（2000+ 模型）
 - 仪表盘 Dashboard: 今日/本月花费、预算进度、成本构成、调用明细、导出 CSV/JSONL
+- 本地用量检测 Local scan: 零侵入只读扫描 OpenCode / ZCode / Claude Code / Codex CLI / Gemini CLI / Qwen Code / iFlow / aider / Cline / Roo Code 本地记录，幂等入库；成本自记或按牌价估算
 - 预算 Budget: 阈值告警 + 超限 402 硬拦截 + 钉钉/企微/飞书 Webhook
 - 隐私 Privacy: 只记元数据，prompt/响应不落库；API Key 仅存 12 位 SHA-256 指纹；本地 SQLite
 

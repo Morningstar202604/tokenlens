@@ -106,7 +106,7 @@ http://127.0.0.1:8787
 | 预算 | 日 / 月预算，80% 告警，超限 402；钉钉 / 企业微信 / 飞书 Webhook |
 | 数据 | CSV 导出（防公式注入）/ JSONL 导出 / CSV 多机幂等导入；retention 自动清理 |
 | 接入 | `tokenlens onboard` 扫描本机 AI 应用并自动改写（Claude Code，可还原）；SDK 埋点（装饰器 / openai 补丁） |
-| 本地用量检测 | 零侵入只读扫描本机应用会话记录——OpenCode（SQLite）、ZCode（模型 IO 日志）、Claude Code（会话 JSONL），按 request_id 幂等导入；启动与每 10 分钟自动扫描，也可 `tokenlens scan-local` 或仪表盘一键（`TOKENLENS_LOCAL_SCAN=0` 关闭） |
+| 本地用量检测 | 零侵入只读扫描本机应用会话记录——OpenCode（SQLite）、ZCode（模型 IO 日志）、Claude Code（会话 JSONL）、Codex CLI（rollout 增量）、Gemini CLI / Qwen Code / iFlow（chats tokens 摘要）、aider（llm 历史）、Cline / Roo Code（任务记录），按 request_id 幂等导入；成本取自记值或按牌价估算；启动与每 10 分钟自动扫描，也可 `tokenlens scan-local` 或仪表盘一键（`TOKENLENS_LOCAL_SCAN=0` 关闭） |
 | 本机应用面板 | 仪表盘状态条：每个已装应用的计量方式一目了然（本地已计量条数 / 可自动接入 / 手动接入 / 不计量） |
 | Windows 托盘 | 双击 exe 缩到系统托盘常驻（左键开仪表盘 / 右键退出）；终端运行与 CLI 子命令不变，缺托盘依赖自动回退控制台 |
 | 安全 | 本机优先；dashboard_token 鉴权；CSRF 防护；DNS rebinding 防护；请求体大小上限；完整分析见 [docs/ANALYSIS.md](docs/ANALYSIS.md) |

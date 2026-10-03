@@ -106,7 +106,7 @@ Design notes worth reading:
 | Budget | daily / monthly, 80% alert, 402 hard block; DingTalk / WeCom / Feishu webhooks |
 | Data | CSV export (formula-injection safe) / JSONL export / idempotent CSV merge; retention auto-prune |
 | Onboarding | `tokenlens onboard` scans local AI apps and wires them safely (Claude Code, reversible); SDK instrumentation (decorator / openai patch) |
-| Local usage detection | zero-intrusion read-only scan of local AI app records — OpenCode (SQLite), ZCode (model IO logs), Claude Code (session JSONL) — idempotently imported by `request_id`; auto-scan at startup & every 10 min, or `tokenlens scan-local` / dashboard button (`TOKENLENS_LOCAL_SCAN=0` to disable) |
+| Local usage detection | zero-intrusion read-only scan of local AI app records — OpenCode (SQLite), ZCode (model IO logs), Claude Code (session JSONL), Codex CLI (rollout deltas), Gemini CLI / Qwen Code / iFlow (chats token summaries), aider (llm history), Cline / Roo Code (task logs) — idempotently imported by `request_id`; costs from app-recorded values or list-price estimates; auto-scan at startup & every 10 min, or `tokenlens scan-local` / dashboard button (`TOKENLENS_LOCAL_SCAN=0` to disable) |
 | App panel | dashboard strip listing every installed AI app and how it is metered (local records count / auto-wire / manual / not meterable) |
 | Windows tray | double-click the exe to run in the system tray (open dashboard / quit); terminal runs and CLI subcommands unchanged; falls back to console mode without tray deps |
 | Security | local-first; dashboard_token auth; CSRF protection; DNS-rebinding protection; request size caps; full analysis in [docs/ANALYSIS.md](docs/ANALYSIS.md) |
