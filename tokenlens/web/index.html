@@ -41,6 +41,7 @@
   .live-pill .sep{color:var(--dim);margin:0 3px}
   /* 折叠筛选面板 */
   .filter-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 16px;display:flex;flex-direction:column;gap:12px}
+  .filter-panel[hidden]{display:none}
   .fp-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .fp-label{color:var(--dim);font-size:12px;flex:none}
   .fp-row select{background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:7px 10px;font-size:13px;font-family:inherit}
@@ -223,6 +224,15 @@
     .kpi .sub{font-size:13px}
     .card .hint{font-size:13px}
     .drawer-close{display:inline-flex}
+    .wrap{padding:16px 12px 48px}
+    .chead{flex-wrap:wrap}
+    .app-chip{padding:4px 10px;font-size:11.5px}
+    .scroll table{font-size:11px}
+    .scroll th,.scroll td{padding:6px 6px}
+    .scroll th:nth-child(3),.scroll td:nth-child(3),
+    .scroll th:nth-child(4),.scroll td:nth-child(4),
+    .scroll th:nth-child(5),.scroll td:nth-child(5),
+    .scroll th:nth-child(9),.scroll td:nth-child(9){display:none}
   }
 </style>
 </head>
@@ -692,14 +702,14 @@ function renderRank(rows){
     tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:ui.tipBg, borderColor:ui.tipLine,
              textStyle:{color:ui.tipText, fontSize:12},
              formatter:p=>`${esc(p[0].name)}<br/>${costTag(p[0].name, p[0].value)}`},
-    xAxis:{type:'value', splitLine:{lineStyle:{color:ui.split}}, axisLabel:{color:ui.axis, fontSize:11}},
+    xAxis:{type:'value', max:v=>v.max>0?v.max*1.35:undefined, splitLine:{lineStyle:{color:ui.split}}, axisLabel:{color:ui.axis, fontSize:11}},
     yAxis:{type:'category', data:names, axisLine:{show:false}, axisTick:{show:false},
            axisLabel:{color:ui.label, fontSize:12}},
-    series:[{type:'bar', data:bars, barWidth:'55%',
+    series:[{type:'bar', data:bars, barWidth:'55%', clip:false,
              itemStyle:{borderRadius:[0,4,4,0],
                color:p=>palette[p.dataIndex % palette.length]},
              label:{show:true, position:'right', color:ui.label, fontSize:11,
-                    formatter:p=>costTag(p.name, p.value)+' · '+fmt(p.data.tokens)+' tok'}}]}
+                    formatter:p=>costTag(p.name, p.value)+(window.innerWidth<=640?'':' · '+fmt(p.data.tokens)+' tok')}}]}
   );
 }
 
